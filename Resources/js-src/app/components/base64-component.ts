@@ -4,6 +4,16 @@ import messenger from 'oroui/js/messenger';
 import Modal from 'oroui/js/modal';
 import BaseComponent from 'oroui/js/app/components/base/component';
 
+interface Base64Options {
+    _sourceElement: any;
+}
+
+interface SniffResult {
+    ext: string;
+    mime: string;
+    label: string;
+}
+
 /**
  * Base64 converter (fully client-side, live).
  *
@@ -12,7 +22,18 @@ import BaseComponent from 'oroui/js/app/components/base/component';
  * The swap button moves the output back into the input and flips the direction.
  */
 class Base64Component extends BaseComponent {
-    initialize(options) {
+    private $el!: any;
+    private mode!: string;
+    private source!: string;
+    private fileBase64!: string | null;
+    private fileSize!: number;
+    private fileName!: string;
+    private binaryBytes!: Uint8Array | null;
+    private binaryMime!: string | null;
+    private binaryExt!: string | null;
+    private _timer!: number | null;
+
+    initialize(options: Base64Options): void {
         this.$el = options._sourceElement;
         this.mode = 'encode';
         this.source = 'text';
@@ -36,7 +57,7 @@ class Base64Component extends BaseComponent {
         this.applyMode();
     }
 
-    onHelp(event) {
+    onHelp(event: any): void {
         event.preventDefault();
         const modal = new Modal({
             title: __('aaxis.tools.base64.help'),
@@ -49,7 +70,7 @@ class Base64Component extends BaseComponent {
 
     // --- Mode / source switching ------------------------------------------
 
-    onModeClick(event) {
+    onModeClick(event: any): void {
         const mode = $(event.currentTarget).data('mode');
         if (mode === this.mode) {
             return;
@@ -61,7 +82,7 @@ class Base64Component extends BaseComponent {
         this.applyMode();
     }
 
-    onSourceClick(event) {
+    onSourceClick(event: any): void {
         const source = $(event.currentTarget).data('source');
         if (source === this.source) {
             return;
@@ -73,7 +94,7 @@ class Base64Component extends BaseComponent {
         this.applyMode();
     }
 
-    applyMode() {
+    applyMode(): void {
         const isEncode = this.mode === 'encode';
         const isFile = isEncode && this.source === 'file';
 
@@ -99,7 +120,7 @@ class Base64Component extends BaseComponent {
         this.convert();
     }
 
-    resetInput() {
+    resetInput(): void {
         this.$el.find('[data-role="input"]').val('');
         this.fileBase64 = null;
         this.fileSize = 0;
@@ -113,39 +134,39 @@ class Base64Component extends BaseComponent {
 
     // --- Input handling ----------------------------------------------------
 
-    onInput() {
+    onInput(): void {
         if (this._timer) {
             clearTimeout(this._timer);
         }
         this._timer = setTimeout(() => this.convert(), 120);
     }
 
-    onClear(event) {
+    onClear(event: any): void {
         event.preventDefault();
         this.resetInput();
         this.convert();
     }
 
-    onBrowse(event) {
+    onBrowse(event: any): void {
         event.preventDefault();
         this.$el.find('[data-role="file"]').trigger('click');
     }
 
-    onFileChange(event) {
+    onFileChange(event: any): void {
         const file = event.currentTarget.files && event.currentTarget.files[0];
         if (file) {
             this.readFile(file);
         }
     }
 
-    bindDropzone() {
+    bindDropzone(): void {
         const $dz = this.$el.find('[data-role="dropzone"]');
-        $dz.on('dragover.aaxisB64', (e) => {
+        $dz.on('dragover.aaxisB64', (e: any) => {
             e.preventDefault();
             $dz.addClass('is-dragover');
         });
         $dz.on('dragleave.aaxisB64 dragend.aaxisB64', () => $dz.removeClass('is-dragover'));
-        $dz.on('drop.aaxisB64', (e) => {
+        $dz.on('drop.aaxisB64', (e: any) => {
             e.preventDefault();
             $dz.removeClass('is-dragover');
             const dt = e.originalEvent.dataTransfer;
@@ -155,10 +176,10 @@ class Base64Component extends BaseComponent {
         });
     }
 
-    readFile(file) {
+    readFile(file: File): void {
         const reader = new FileReader();
         reader.onload = () => {
-            const bytes = new Uint8Array(reader.result);
+            const bytes = new Uint8Array(reader.result as ArrayBuffer);
             // Output pure Base64 (no data: prefix). The file type is recovered on decode by
             // sniffing the content, so the output stays clean and copy-friendly.
             this.fileBase64 = this.bytesToBase64(bytes);
@@ -173,7 +194,7 @@ class Base64Component extends BaseComponent {
 
     // --- Conversion --------------------------------------------------------
 
-    convert() {
+    convert(): void {
         this.clearError();
         this.binaryBytes = null;
         this.binaryMime = null;
@@ -188,7 +209,7 @@ class Base64Component extends BaseComponent {
         }
     }
 
-    runEncode() {
+    runEncode(): void {
         if (this.source === 'file') {
             if (this.fileBase64 === null) {
                 this.setOutput('');
@@ -207,7 +228,7 @@ class Base64Component extends BaseComponent {
         this.setCounts(text.length, b64.length, 'chars', 'chars');
     }
 
-    runDecode() {
+    runDecode(): void {
         const raw = String(this.$el.find('[data-role="input"]').val() || '').trim();
         if (raw === '') {
             this.setOutput('');
@@ -245,11 +266,11 @@ class Base64Component extends BaseComponent {
 
     // --- Output helpers ----------------------------------------------------
 
-    setOutput(value) {
+    setOutput(value: string): void {
         this.$el.find('[data-role="output"]').val(value);
     }
 
-    setCounts(inCount, outCount, inUnit, outUnit) {
+    setCounts(inCount: number, outCount: number, inUnit: string, outUnit: string): void {
         this.$el.find('[data-role="input-count"]').text(this.formatCount(inCount, inUnit));
         this.$el.find('[data-role="output-count"]').text(
             (outCount === 0 && this.binaryBytes === null && this.$el.find('[data-role="output"]').val() === '')
@@ -257,13 +278,13 @@ class Base64Component extends BaseComponent {
                 : this.formatCount(outCount, outUnit));
     }
 
-    formatCount(count, unit) {
+    formatCount(count: number, unit: string): string {
         return unit === 'bytes'
             ? __('aaxis.tools.base64.count_bytes', {count: count})
             : __('aaxis.tools.base64.count_chars', {count: count});
     }
 
-    showBinary(show, size, mime) {
+    showBinary(show: boolean, size?: number, mime?: string): void {
         this.$el.find('[data-role="output"]').prop('hidden', !!show);
         this.$el.find('[data-role="binary"]').prop('hidden', !show);
         if (show) {
@@ -274,21 +295,21 @@ class Base64Component extends BaseComponent {
         }
     }
 
-    toggleDownload(show) {
+    toggleDownload(show: boolean): void {
         this.$el.find('[data-role="download"]').prop('hidden', !show);
     }
 
-    showError(message) {
+    showError(message: string): void {
         this.$el.find('[data-role="error"]').prop('hidden', false).text(message);
     }
 
-    clearError() {
+    clearError(): void {
         this.$el.find('[data-role="error"]').prop('hidden', true).text('');
     }
 
     // --- Actions -----------------------------------------------------------
 
-    onCopy(event) {
+    onCopy(event: any): void {
         event.preventDefault();
         const value = String(this.$el.find('[data-role="output"]').val() || '');
         if (value === '') {
@@ -303,13 +324,13 @@ class Base64Component extends BaseComponent {
         }
     }
 
-    onDownload(event) {
+    onDownload(event: any): void {
         event.preventDefault();
         if (!this.binaryBytes) {
             return;
         }
         const mime = this.binaryMime || 'application/octet-stream';
-        const blob = new Blob([this.binaryBytes], {type: mime});
+        const blob = new Blob([this.binaryBytes as BlobPart], {type: mime});
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
@@ -320,7 +341,7 @@ class Base64Component extends BaseComponent {
         URL.revokeObjectURL(url);
     }
 
-    onSwap(event) {
+    onSwap(event: any): void {
         event.preventDefault();
         const output = String(this.$el.find('[data-role="output"]').val() || '');
         // Nothing to swap for an empty or binary result.
@@ -342,16 +363,16 @@ class Base64Component extends BaseComponent {
 
     // --- Base64 / UTF-8 helpers -------------------------------------------
 
-    bytesToBase64(bytes) {
+    bytesToBase64(bytes: Uint8Array): string {
         let binary = '';
         const chunk = 0x8000;
         for (let i = 0; i < bytes.length; i += chunk) {
-            binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+            binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk) as any);
         }
         return btoa(binary);
     }
 
-    base64ToBytes(b64) {
+    base64ToBytes(b64: string): Uint8Array {
         // Tolerate common real-world variations: surrounding whitespace/newlines, JSON-escaped
         // slashes ("\/"), URL-safe alphabet ("-"/"_") and missing "=" padding.
         let normalized = b64
@@ -375,7 +396,7 @@ class Base64Component extends BaseComponent {
         return bytes;
     }
 
-    bytesToTextOrNull(bytes) {
+    bytesToTextOrNull(bytes: Uint8Array): string | null {
         try {
             return new TextDecoder('utf-8', {fatal: true}).decode(bytes);
         } catch (e) {
@@ -389,8 +410,8 @@ class Base64Component extends BaseComponent {
      *
      * @return {{ext: string, mime: string, label: string}}
      */
-    sniffType(bytes) {
-        const starts = (sig, offset) => {
+    sniffType(bytes: Uint8Array): SniffResult {
+        const starts = (sig: number[], offset?: number) => {
             const at = offset || 0;
             if (bytes.length < at + sig.length) {
                 return false;
@@ -402,7 +423,7 @@ class Base64Component extends BaseComponent {
             }
             return true;
         };
-        const ascii = (str, offset) => starts(str.split('').map(c => c.charCodeAt(0)), offset);
+        const ascii = (str: string, offset?: number) => starts(str.split('').map(c => c.charCodeAt(0)), offset);
 
         if (ascii('%PDF')) {
             return {ext: 'pdf', mime: 'application/pdf', label: 'PDF document'};
@@ -445,7 +466,7 @@ class Base64Component extends BaseComponent {
         return {ext: 'bin', mime: 'application/octet-stream', label: 'binary'};
     }
 
-    dispose() {
+    dispose(): void {
         if (this.disposed) {
             return;
         }

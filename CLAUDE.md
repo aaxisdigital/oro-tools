@@ -64,9 +64,11 @@ Same shape as `AaxisDevToolsBundle` (see its `CLAUDE.md`), using the `aaxis_tool
 ## Front end / TypeScript
 
 `Resources/js-src/*.ts` → `Resources/public/js/*.js` via `php bin/console aaxis:tools:typescript:compile`
-(also on `oro:assets:build`). Both sources and emitted JS are committed. `tsconfig.json` extends the
-bundle's own `tsconfig.base.json` (a copy of CommonBundle's, since each package ships independently);
-shared widgets come from `aaxiscommon/js/app/widgets/*`.
+(also on `oro:assets:build`). **Only the `.ts` sources are committed**; the emitted JS is generated at
+build time and git-ignored — edit the `.ts`, never the `.js`. The build fails loudly if `tsc` is
+missing (no committed JS fallback), and recompiles even under `vendor/aaxisdigital/oro*`.
+`tsconfig.json` extends the bundle's own `tsconfig.base.json` (a copy of CommonBundle's, since each
+package ships independently); shared widgets come from `aaxiscommon/js/app/widgets/*`.
 
 ## Verify after changes
 
