@@ -1,0 +1,123 @@
+{% extends '@OroUI/actions/index.html.twig' %}
+
+{% set pageTitle = 'aaxis.tools.menu.aaxis_tools_base64.label'|trans %}
+
+{% block content %}
+    <div class="layout-content">
+        <div class="content aaxis-base64"
+             data-page-component-module="aaxistools/js/app/components/base64-component">
+            <div class="container-fluid page-title aaxis-base64__titlebar">
+                <h1 class="page-title__entity-title aaxis-base64__title">
+                    {{ 'aaxis.tools.menu.aaxis_tools_base64.label'|trans }}
+                    <a href="{{ path('oro_config_configuration_system', {activeGroup: 'platform', activeSubGroup: 'aaxis_tools'}) }}"
+                       class="aaxis-tool-config-btn" data-role="config"
+                       title="{{ 'aaxis.tools.config_link'|trans }}"
+                       aria-label="{{ 'aaxis.tools.config_link'|trans }}">
+                        <span class="fa fa-cog" aria-hidden="true"></span>
+                    </a>
+                    <button type="button" class="aaxis-tool-help-btn" data-role="help"
+                            title="{{ 'aaxis.tools.base64.help'|trans }}"
+                            aria-label="{{ 'aaxis.tools.base64.help'|trans }}">
+                        <span class="fa fa-question-circle" aria-hidden="true"></span>
+                    </button>
+                </h1>
+
+                <div class="aaxis-base64__modes" role="tablist">
+                    <button type="button" class="aaxis-base64__mode is-active" data-role="mode" data-mode="encode">
+                        <span class="fa fa-lock" aria-hidden="true"></span>
+                        {{ 'aaxis.tools.base64.encode_tab'|trans }}
+                    </button>
+                    <button type="button" class="aaxis-base64__mode" data-role="mode" data-mode="decode">
+                        <span class="fa fa-unlock" aria-hidden="true"></span>
+                        {{ 'aaxis.tools.base64.decode_tab'|trans }}
+                    </button>
+                </div>
+            </div>
+
+            <div class="aaxis-base64__workspace">
+                {# ---- Input ---- #}
+                <section class="aaxis-base64__io">
+                    <header class="aaxis-base64__io-head">
+                        <span class="aaxis-base64__io-title" data-role="input-title"></span>
+                        <span class="aaxis-base64__count" data-role="input-count"></span>
+                    </header>
+
+                    <textarea class="aaxis-base64__area" data-role="input" spellcheck="false"
+                              autocomplete="off" autocapitalize="off"></textarea>
+
+                    <div class="aaxis-base64__dropzone" data-role="dropzone" hidden>
+                        <span class="fa fa-cloud-upload aaxis-base64__dropzone-icon" aria-hidden="true"></span>
+                        <p class="aaxis-base64__dropzone-text">
+                            {{ 'aaxis.tools.base64.dropzone_label'|trans }}
+                            <button type="button" class="aaxis-base64__link" data-role="browse">{{ 'aaxis.tools.base64.browse'|trans }}</button>
+                        </p>
+                        <p class="aaxis-base64__file-name" data-role="file-name" hidden></p>
+                        <input type="file" data-role="file" hidden>
+                    </div>
+
+                    <footer class="aaxis-base64__io-foot">
+                        <button type="button" class="btn btn-sm" data-role="input-clear">
+                            {{ 'aaxis.tools.base64.clear'|trans }}
+                        </button>
+                        <div class="aaxis-base64__sources" data-role="source-toggle">
+                            <button type="button" class="aaxis-base64__source is-active" data-role="source" data-source="text">
+                                {{ 'aaxis.tools.base64.source_text'|trans }}
+                            </button>
+                            <button type="button" class="aaxis-base64__source" data-role="source" data-source="file">
+                                {{ 'aaxis.tools.base64.source_file'|trans }}
+                            </button>
+                        </div>
+                    </footer>
+                </section>
+
+                {# ---- Swap ---- #}
+                <div class="aaxis-base64__swap-wrap">
+                    <button type="button" class="aaxis-base64__swap" data-role="swap"
+                            title="{{ 'aaxis.tools.base64.swap'|trans }}"
+                            aria-label="{{ 'aaxis.tools.base64.swap'|trans }}">
+                        <span class="fa fa-exchange" aria-hidden="true"></span>
+                    </button>
+                </div>
+
+                {# ---- Output ---- #}
+                <section class="aaxis-base64__io">
+                    <header class="aaxis-base64__io-head">
+                        <span class="aaxis-base64__io-title" data-role="output-title"></span>
+                        <span class="aaxis-base64__count" data-role="output-count"></span>
+                    </header>
+
+                    <textarea class="aaxis-base64__area" data-role="output" readonly spellcheck="false"></textarea>
+
+                    <div class="aaxis-base64__binary" data-role="binary" hidden>
+                        <span class="fa fa-file-archive-o aaxis-base64__binary-icon" aria-hidden="true"></span>
+                        <p class="aaxis-base64__binary-text" data-role="binary-text"></p>
+                    </div>
+
+                    <p class="aaxis-base64__error" data-role="error" hidden></p>
+
+                    <footer class="aaxis-base64__io-foot">
+                        <button type="button" class="btn btn-sm" data-role="copy">
+                            <span class="fa fa-clipboard" aria-hidden="true"></span>
+                            {{ 'aaxis.tools.base64.copy'|trans }}
+                        </button>
+                        <button type="button" class="btn btn-sm btn-primary" data-role="download" hidden>
+                            <span class="fa fa-download" aria-hidden="true"></span>
+                            {{ 'aaxis.tools.base64.download'|trans }}
+                        </button>
+                    </footer>
+                </section>
+            </div>
+
+            <p class="aaxis-base64__hint" data-role="hint"></p>
+
+            <div data-role="help-content" hidden>
+                <p>{{ 'aaxis.tools.base64.help_intro'|trans }}</p>
+                <ul>
+                    <li>{{ 'aaxis.tools.base64.help_encode'|trans }}</li>
+                    <li>{{ 'aaxis.tools.base64.help_decode'|trans }}</li>
+                    <li>{{ 'aaxis.tools.base64.help_swap'|trans }}</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+{% endblock %}

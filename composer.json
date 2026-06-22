@@ -1,0 +1,33 @@
+{
+    "name": "aaxisdigital/oro-tools",
+    "type": "library",
+    "description": "Adds the \"Aaxis Tools\" back-office section to OroCommerce: a RabbitMQ Queue Monitor, an API Collection runner with run history, and a Base64 encode/decode tool.",
+    "keywords": ["oro", "orocommerce", "oroplatform", "aaxis", "bundle", "tools"],
+    "license": "proprietary",
+    "authors": [
+        {
+            "name": "AAXIS Digital",
+            "homepage": "https://www.aaxis.io/"
+        }
+    ],
+    "require": {
+        "php": ">=8.4",
+        "oro/platform": "7.0.*",
+        "aaxisdigital/oro-common": "7.0.*"
+    },
+    "autoload": {
+        "psr-4": {
+            "Aaxis\\Bundle\\ToolsBundle\\": ""
+        },
+        "exclude-from-classmap": [
+            "/Tests/"
+        ]
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true,
+    "extra": {
+        "branch-alias": {
+            "dev-main": "7.0.x-dev"
+        }
+    }
+}

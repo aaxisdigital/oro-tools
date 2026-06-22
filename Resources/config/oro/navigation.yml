@@ -1,0 +1,49 @@
+navigation:
+    menu_config:
+        items:
+            aaxis_tools_group:
+                label: 'aaxis.tools.menu.aaxis_tools_group.label'
+                uri: '#'
+                position: 10
+                extras:
+                    icon: fa-wrench
+
+            aaxis_tools_queue_monitor:
+                label: 'aaxis.tools.menu.aaxis_tools_queue_monitor.label'
+                route: 'aaxis_tools_queue_monitor'
+                position: 50
+                extras:
+                    routes: ['aaxis_tools_queue_monitor']
+                    description: 'aaxis.tools.menu.aaxis_tools_queue_monitor.description'
+
+            aaxis_tools_api_collection:
+                label: 'aaxis.tools.menu.aaxis_tools_api_collection.label'
+                route: 'aaxis_tools_api_collection'
+                position: 70
+                extras:
+                    routes: ['aaxis_tools_api_collection']
+                    description: 'aaxis.tools.menu.aaxis_tools_api_collection.description'
+
+            aaxis_tools_base64:
+                label: 'aaxis.tools.menu.aaxis_tools_base64.label'
+                route: 'aaxis_tools_base64'
+                position: 75
+                extras:
+                    routes: ['aaxis_tools_base64']
+                    description: 'aaxis.tools.menu.aaxis_tools_base64.description'
+
+        tree:
+            application_menu:
+                children:
+                    aaxis_tab:
+                        children:
+                            aaxis_tools_group:
+                                children:
+                                    aaxis_tools_queue_monitor: ~
+                                    aaxis_tools_api_collection: ~
+                                    aaxis_tools_base64: ~
+
+    titles:
+        aaxis_tools_queue_monitor: 'aaxis.tools.menu.aaxis_tools_queue_monitor.label'
+        aaxis_tools_api_collection: 'aaxis.tools.menu.aaxis_tools_api_collection.label'
+        aaxis_tools_base64: 'aaxis.tools.menu.aaxis_tools_base64.label'

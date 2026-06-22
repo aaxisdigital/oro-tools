@@ -1,0 +1,81 @@
+{% extends '@OroUI/actions/index.html.twig' %}
+
+{% set pageTitle = 'aaxis.tools.menu.aaxis_tools_queue_monitor.label'|trans %}
+
+{% block content %}
+    <div class="layout-content">
+        <div class="content"
+             data-page-component-module="aaxistools/js/app/components/queue-monitor-component"
+             data-page-component-options="{{ {
+                 queuesUrl: path('aaxis_tools_queue_monitor_queues'),
+                 queueUrlTemplate: path('aaxis_tools_queue_monitor_queue', {name: '__NAME__'}),
+                 messagesUrlTemplate: path('aaxis_tools_queue_monitor_messages', {name: '__NAME__'})
+             }|merge(options)|json_encode }}">
+            <div class="container-fluid page-title">
+                <div class="aaxis-queue-mon__titlebar">
+                    <h1 class="page-title__entity-title aaxis-queue-mon__title">
+                        {{ 'aaxis.tools.menu.aaxis_tools_queue_monitor.label'|trans }}
+                        <a href="{{ path('oro_config_configuration_system', {activeGroup: 'platform', activeSubGroup: 'aaxis_tools'}) }}"
+                           class="aaxis-tool-config-btn" data-role="config"
+                           title="{{ 'aaxis.tools.config_link'|trans }}"
+                           aria-label="{{ 'aaxis.tools.config_link'|trans }}">
+                            <span class="fa fa-cog" aria-hidden="true"></span>
+                        </a>
+                        <button type="button" class="aaxis-queue-mon__help-btn" data-role="help"
+                                title="{{ 'aaxis.tools.queue_monitor.help'|trans }}"
+                                aria-label="{{ 'aaxis.tools.queue_monitor.help'|trans }}">
+                            <span class="fa fa-question-circle" aria-hidden="true"></span>
+                        </button>
+                    </h1>
+                    <span class="aaxis-queue-mon__title-hint">{{ 'aaxis.tools.queue_monitor.hint'|trans }}</span>
+                </div>
+            </div>
+
+            <div class="aaxis-queue-mon" data-role="layout">
+                <aside class="aaxis-queue-mon__sidebar" data-role="sidebar">
+                    <div class="aaxis-queue-mon__filter">
+                        <div class="aaxis-queue-mon__filter-input">
+                            <input type="text" class="form-control" data-role="filter"
+                                   placeholder="{{ 'aaxis.tools.queue_monitor.filter_placeholder'|trans }}">
+                            <button type="button" class="aaxis-queue-mon__filter-clear" data-role="filter-clear"
+                                    title="{{ 'aaxis.tools.queue_monitor.filter_clear'|trans }}"
+                                    aria-label="{{ 'aaxis.tools.queue_monitor.filter_clear'|trans }}"
+                                    hidden>&times;</button>
+                        </div>
+                        <button type="button" class="aaxis-queue-mon__refresh" data-role="refresh"
+                                title="{{ 'aaxis.tools.queue_monitor.refresh'|trans }}"
+                                aria-label="{{ 'aaxis.tools.queue_monitor.refresh'|trans }}">
+                            <span class="fa fa-refresh" aria-hidden="true"></span>
+                        </button>
+                    </div>
+                    <label class="aaxis-queue-mon__autorefresh">
+                        <input type="checkbox" data-role="autorefresh" checked>
+                        {{ 'aaxis.tools.queue_monitor.auto_refresh'|trans }}
+                    </label>
+                    <div class="aaxis-queue-mon__select-actions" {% if not options.allowMultiselect %}hidden{% endif %}>
+                        <button type="button" class="aaxis-queue-mon__link" data-role="select-all">
+                            {{ 'aaxis.tools.queue_monitor.select_all'|trans }}
+                        </button>
+                        <button type="button" class="aaxis-queue-mon__link" data-role="select-none">
+                            {{ 'aaxis.tools.queue_monitor.select_none'|trans }}
+                        </button>
+                    </div>
+                    <ul data-role="queues" class="aaxis-queue-mon__queues"></ul>
+                </aside>
+
+                <div class="aaxis-queue-mon__v-splitter" data-role="v-splitter"
+                     role="separator" aria-orientation="vertical"></div>
+
+                <div class="aaxis-queue-mon__main" data-role="detail">
+                    <div class="aaxis-queue-mon__placeholder" data-role="placeholder">
+                        {{ 'aaxis.tools.queue_monitor.select_hint'|trans }}
+                    </div>
+                </div>
+            </div>
+
+            <div data-role="help-content" hidden>
+                {% include '@AaxisTools/Tools/_queueMonitorHelp.html.twig' %}
+            </div>
+        </div>
+    </div>
+{% endblock %}

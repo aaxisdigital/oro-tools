@@ -1,0 +1,158 @@
+{% extends '@OroUI/actions/index.html.twig' %}
+
+{% set pageTitle = 'aaxis.tools.menu.aaxis_tools_api_collection.label'|trans %}
+
+{% block content %}
+    <div class="layout-content">
+        <div class="content"
+             data-page-component-module="aaxistools/js/app/components/api-collection-component"
+             data-page-component-options="{{ {
+                 treeUrl: path('aaxis_tools_api_collection_tree'),
+                 createUrl: path('aaxis_tools_api_collection_create'),
+                 runUrl: path('aaxis_tools_api_collection_run'),
+                 executeUrl: path('aaxis_tools_api_collection_execute')
+             }|json_encode }}">
+            <div class="container-fluid page-title">
+                <div class="aaxis-api__titlebar">
+                    <h1 class="page-title__entity-title aaxis-api__title">
+                        {{ 'aaxis.tools.menu.aaxis_tools_api_collection.label'|trans }}
+                        <a href="{{ path('oro_config_configuration_system', {activeGroup: 'platform', activeSubGroup: 'aaxis_tools'}) }}"
+                           class="aaxis-tool-config-btn" data-role="config"
+                           title="{{ 'aaxis.tools.config_link'|trans }}" aria-label="{{ 'aaxis.tools.config_link'|trans }}">
+                            <span class="fa fa-cog" aria-hidden="true"></span>
+                        </a>
+                        <button type="button" class="aaxis-api__help-btn" data-role="help"
+                                title="{{ 'aaxis.tools.api_collection.help'|trans }}"
+                                aria-label="{{ 'aaxis.tools.api_collection.help'|trans }}">
+                            <span class="fa fa-question-circle" aria-hidden="true"></span>
+                        </button>
+                    </h1>
+                    <span class="aaxis-api__title-hint">{{ 'aaxis.tools.api_collection.hint'|trans }}</span>
+                </div>
+            </div>
+
+            <div class="aaxis-api" data-role="layout">
+                <aside class="aaxis-api__sidebar" data-role="sidebar">
+                    <div class="aaxis-api__sidebar-actions">
+                        <input type="text" class="form-control aaxis-api__filter" data-role="filter"
+                               placeholder="{{ 'aaxis.tools.api_collection.filter_placeholder'|trans }}"
+                               autocomplete="off" spellcheck="false">
+                        <button type="button" class="aaxis-api__add-folder" data-role="add-root-folder"
+                                title="{{ 'aaxis.tools.api_collection.new_folder'|trans }}"
+                                aria-label="{{ 'aaxis.tools.api_collection.new_folder'|trans }}">
+                            <span class="fa fa-folder" aria-hidden="true"></span>
+                            <span class="fa fa-plus aaxis-api__add-folder-badge" aria-hidden="true"></span>
+                        </button>
+                    </div>
+                    <div class="aaxis-api__tree-wrap">
+                        <ul class="aaxis-api__tree" data-role="tree"></ul>
+                        <div class="aaxis-api__busy" data-role="busy" hidden>
+                            <span class="fa fa-spinner fa-spin" aria-hidden="true"></span>
+                        </div>
+                    </div>
+                </aside>
+
+                <div class="aaxis-api__main is-disabled" data-role="main">
+                    <div class="aaxis-api__main-mask" data-role="main-mask">
+                        <span>{{ 'aaxis.tools.api_collection.select_request'|trans }}</span>
+                    </div>
+                    <div class="aaxis-api__reqbar">
+                        <select class="form-control aaxis-api__method" data-role="method">
+                            <option value="GET">GET</option>
+                            <option value="POST">POST</option>
+                            <option value="PUT">PUT</option>
+                            <option value="PATCH">PATCH</option>
+                            <option value="DELETE">DELETE</option>
+                            <option value="OPTIONS">OPTIONS</option>
+                            <option value="HEAD">HEAD</option>
+                        </select>
+                        <input type="text" class="form-control aaxis-api__url" data-role="url"
+                               placeholder="{{ 'aaxis.tools.api_collection.url_placeholder'|trans }}"
+                               autocomplete="off" spellcheck="false">
+                        <button type="button" class="btn btn-primary aaxis-api__send" data-role="send">
+                            <span class="fa fa-paper-plane" aria-hidden="true"></span>
+                            {{ 'aaxis.tools.api_collection.send'|trans }}
+                        </button>
+                    </div>
+
+                    <div class="aaxis-api__tabs">
+                        <button type="button" class="aaxis-api__tab is-active" data-role="tab" data-tab="params">
+                            {{ 'aaxis.tools.api_collection.tab_params'|trans }}
+                        </button>
+                        <button type="button" class="aaxis-api__tab" data-role="tab" data-tab="body">
+                            {{ 'aaxis.tools.api_collection.tab_body'|trans }}
+                        </button>
+                        <button type="button" class="aaxis-api__tab" data-role="tab" data-tab="headers">
+                            {{ 'aaxis.tools.api_collection.tab_headers'|trans }}
+                        </button>
+                        <button type="button" class="aaxis-api__max" data-role="max-request"
+                                title="{{ 'aaxis.tools.api_collection.maximize'|trans }}"
+                                aria-label="{{ 'aaxis.tools.api_collection.maximize'|trans }}">
+                            <span class="fa fa-expand" aria-hidden="true"></span>
+                        </button>
+                    </div>
+
+                    <div class="aaxis-api__panels">
+                        <div class="aaxis-api__panel" data-role="panel" data-tab="params">
+                            <div data-role="params-rows"></div>
+                            <button type="button" class="btn btn-sm" data-role="add-param">
+                                <span class="fa fa-plus" aria-hidden="true"></span> {{ 'aaxis.tools.api_collection.add_row'|trans }}
+                            </button>
+                        </div>
+                        <div class="aaxis-api__panel" data-role="panel" data-tab="body" hidden>
+                            <div class="aaxis-api__body-bar">
+                                <select class="form-control aaxis-api__body-type" data-role="body-type">
+                                    <option value="none">{{ 'aaxis.tools.api_collection.body_none'|trans }}</option>
+                                    <option value="json">JSON</option>
+                                    <option value="xml">XML</option>
+                                    <option value="form">{{ 'aaxis.tools.api_collection.body_form'|trans }}</option>
+                                    <option value="raw">{{ 'aaxis.tools.api_collection.body_raw'|trans }}</option>
+                                </select>
+                                <button type="button" class="btn btn-sm aaxis-api__beautify" data-role="beautify" hidden>
+                                    <span class="fa fa-magic" aria-hidden="true"></span>
+                                    {{ 'aaxis.tools.api_collection.beautify'|trans }}
+                                </button>
+                            </div>
+                            <textarea class="form-control aaxis-api__body" data-role="body"
+                                      spellcheck="false" placeholder="{{ 'aaxis.tools.api_collection.body_placeholder'|trans }}"></textarea>
+                        </div>
+                        <div class="aaxis-api__panel" data-role="panel" data-tab="headers" hidden>
+                            <div data-role="headers-rows"></div>
+                            <button type="button" class="btn btn-sm" data-role="add-header">
+                                <span class="fa fa-plus" aria-hidden="true"></span> {{ 'aaxis.tools.api_collection.add_row'|trans }}
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="aaxis-api__res-head">
+                        <span>{{ 'aaxis.tools.api_collection.response'|trans }}</span>
+                        <button type="button" class="aaxis-api__max" data-role="max-response"
+                                title="{{ 'aaxis.tools.api_collection.maximize'|trans }}"
+                                aria-label="{{ 'aaxis.tools.api_collection.maximize'|trans }}">
+                            <span class="fa fa-expand" aria-hidden="true"></span>
+                        </button>
+                    </div>
+                    <div class="aaxis-api__result" data-role="result">
+                        <div class="aaxis-api__result-empty">{{ 'aaxis.tools.api_collection.no_response'|trans }}</div>
+                    </div>
+                </div>
+
+                <div class="aaxis-api__rightbar is-collapsed" data-role="rightbar">
+                    <button type="button" class="aaxis-api__rightbar-toggle" data-role="rightbar-toggle"
+                            title="{{ 'aaxis.tools.api_collection.toggle_sidebar'|trans }}"
+                            aria-label="{{ 'aaxis.tools.api_collection.toggle_sidebar'|trans }}">
+                        <span class="fa fa-chevron-left" aria-hidden="true"></span>
+                    </button>
+                    <div class="aaxis-api__rightbar-body">
+                        <h5 class="aaxis-api__rightbar-title">{{ 'aaxis.tools.api_collection.history_title'|trans }}</h5>
+                        <ul class="aaxis-api__runs" data-role="runs"></ul>
+                    </div>
+                </div>
+            </div>
+
+            <div data-role="help-content" hidden>
+                {% include '@AaxisTools/Tools/_apiCollectionHelp.html.twig' %}
+            </div>
+        </div>
+    </div>
+{% endblock %}

@@ -1,0 +1,16 @@
+acls:
+    # Single capability that gates access to the whole "Aaxis Tools" back-office section.
+    # Bound to every Aaxis Tools controller (class-level binding => all of its actions), so a role
+    # without this capability cannot reach any tool page or its AJAX endpoints, and the menu items
+    # are hidden.
+    aaxis_tools:
+        label: aaxis.tools.acl.aaxis_tools.label
+        description: aaxis.tools.acl.aaxis_tools.description
+        type: action
+        group_name: ""
+        category: "aaxis_tools"
+        bindings:
+            - { class: Aaxis\Bundle\ToolsBundle\Controller\ToolsController }
+            - { class: Aaxis\Bundle\ToolsBundle\Controller\Base64Controller }
+            - { class: Aaxis\Bundle\ToolsBundle\Controller\ApiCollectionController }
+            - { class: Aaxis\Bundle\ToolsBundle\Controller\QueueMonitorController }

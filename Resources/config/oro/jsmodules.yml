@@ -1,0 +1,5 @@
+dynamic-imports:
+    aaxistools:
+        - aaxistools/js/app/components/queue-monitor-component
+        - aaxistools/js/app/components/api-collection-component
+        - aaxistools/js/app/components/base64-component

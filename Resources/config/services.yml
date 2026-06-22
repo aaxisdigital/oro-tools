@@ -1,0 +1,69 @@
+services:
+    _defaults:
+        autowire: false
+        autoconfigure: false
+        public: false
+
+    Aaxis\Bundle\ToolsBundle\Queue\RabbitMqManagementClient:
+        arguments:
+            - '%env(ORO_MQ_DSN)%'
+            - '%env(default::ORO_MQ_MANAGEMENT_URL)%'
+
+    aaxis_tools.rabbitmq_management_client:
+        alias: Aaxis\Bundle\ToolsBundle\Queue\RabbitMqManagementClient
+        public: true
+
+    Aaxis\Bundle\ToolsBundle\Manager\ApiCollectionManager:
+        arguments:
+            - '@doctrine'
+            - '@oro_security.token_accessor'
+
+    aaxis_tools.api_collection_manager:
+        alias: Aaxis\Bundle\ToolsBundle\Manager\ApiCollectionManager
+        public: true
+
+    Aaxis\Bundle\ToolsBundle\Http\ApiRequestExecutor:
+        arguments:
+            - '@http_client'
+
+    aaxis_tools.api_request_executor:
+        alias: Aaxis\Bundle\ToolsBundle\Http\ApiRequestExecutor
+        public: true
+
+    # Connection tester contributed to the shared CommonBundle registry.
+    Aaxis\Bundle\ToolsBundle\Connection\QueueConnectionTester:
+        arguments:
+            - '@aaxis_tools.rabbitmq_management_client'
+        tags:
+            - { name: aaxis_common.connection_tester, tool: queue_monitor }
+
+    # Shared TypeScript build pipeline (classes live in AaxisCommonBundle).
+    aaxis_tools.typescript_compiler:
+        class: Aaxis\Bundle\CommonBundle\Build\TypeScriptCompiler
+        arguments:
+            - '%kernel.project_dir%'
+            - '@logger'
+            - '%aaxis_tools.bundle_dir%/Resources/js-src/tsconfig.json'
+            - 'AaxisToolsBundle'
+
+    aaxis_tools.typescript_compile_command:
+        class: Aaxis\Bundle\CommonBundle\Command\CompileTypeScriptCommand
+        arguments:
+            - '@aaxis_tools.typescript_compiler'
+            - 'aaxis:tools:typescript:compile'
+        tags:
+            - { name: console.command, command: 'aaxis:tools:typescript:compile' }
+
+    aaxis_tools.compile_typescript_on_assets_build_listener:
+        class: Aaxis\Bundle\CommonBundle\EventListener\CompileTypeScriptOnAssetsBuildListener
+        arguments:
+            - '@aaxis_tools.typescript_compiler'
+        tags:
+            - { name: kernel.event_subscriber }
+
+    Aaxis\Bundle\ToolsBundle\Command\CleanupHistoryCommand:
+        arguments:
+            - '@aaxis_common.history_retention_purger'
+            - '@oro_config.global'
+        tags:
+            - { name: console.command }

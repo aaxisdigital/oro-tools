@@ -1,0 +1,142 @@
+aaxis:
+    tools:
+        menu:
+            aaxis_tools_group:
+                label: Tools
+            aaxis_tools_queue_monitor:
+                label: Queue Monitor
+                description: Inspect message queue consumers and jobs
+            aaxis_tools_api_collection:
+                label: API Collection
+                description: Browse and try the available API endpoints
+            aaxis_tools_base64:
+                label: Base64
+                description: Encode text or files to Base64 and decode back
+        config_link: 'Aaxis Tools configuration'
+        acl:
+            category:
+                label: 'Aaxis Tools'
+            aaxis_tools:
+                label: 'Access Aaxis Tools'
+                description: 'Allow access to the Aaxis Tools back-office section (all tools and their pages).'
+        feature:
+            aaxis_tools:
+                label: 'Aaxis Tools'
+            queue_monitor:
+                label: 'Aaxis Tools - Queue Monitor'
+            api_collection:
+                label: 'Aaxis Tools - API Collection'
+            base64:
+                label: 'Aaxis Tools - Base64'
+        config:
+            group:
+                title: 'Aaxis Tools'
+            test:
+                label: 'Connection'
+            settings_block:
+                title: Settings
+            enabled:
+                label: Enabled
+            history_retention:
+                label: 'Keep history data for (days)'
+                tooltip: 'Records older than this many days are removed by the nightly cleanup job. Use 0 to keep data indefinitely.'
+            queue_monitor:
+                title: 'Queue Monitor'
+                allow_multiselect:
+                    label: 'Allow selecting multiple queues'
+                allow_color_selection:
+                    label: 'Allow per-queue colour selection'
+                allow_message_preview:
+                    label: 'Allow message preview'
+                max_message_fetch:
+                    label: 'Max messages per preview'
+                    tooltip: 'Hard limit on how many messages a single preview can fetch and requeue (default 100).'
+                history_samples:
+                    label: 'History sample count'
+                    tooltip: 'How many length samples to keep/show per queue (default 15).'
+                history_interval:
+                    label: 'History sample interval (seconds)'
+                    tooltip: 'Seconds between the length samples requested from RabbitMQ (default 60). Samples come from RabbitMQ''s own retained short-term history; this tool does not capture them.'
+            api_collection:
+                title: 'API Collection'
+            base64:
+                title: 'Base64'
+        base64:
+            encode_tab: Encode
+            decode_tab: Decode
+            source_text: Text
+            source_file: File
+            dropzone_label: 'Drag & drop a file here, or'
+            browse: browse
+            copy: Copy
+            download: Download
+            clear: Clear
+            swap: Use the result as input
+            help: Base64 help
+            help_intro: 'Convert data to and from Base64, entirely in your browser — nothing is uploaded.'
+            help_encode: 'Encode: type text or drop/choose a file to get its Base64 representation.'
+            help_decode: 'Decode: paste Base64 to get text, or — when the result is binary — a download with the detected file type.'
+            help_swap: 'Use the swap button to move the result into the input and flip the direction.'
+        queue_monitor:
+            hint: 'Live view of RabbitMQ queues. Message previews are returned to the queue (non-destructive).'
+            help: 'Queue Monitor help'
+            filter_placeholder: 'Filter queues...'
+            filter_clear: 'Clear filter'
+            refresh: 'Refresh queues'
+            auto_refresh: 'Auto-refresh every 5s'
+            select_all: 'Select all'
+            select_none: 'Clear'
+            select_hint: 'Select a queue on the left to see its counters, history and messages.'
+            help_dialog:
+                intro: 'Monitor RabbitMQ queues: outstanding messages, consumers, recent length history and a non-destructive preview of the messages currently queued.'
+                queues:
+                    title: 'Queue list'
+                    item1: 'The left sidebar lists every queue with badges for ready messages, unacknowledged messages and consumers.'
+                    item2: 'The list refreshes automatically every 5 seconds; toggle the checkbox or use the refresh button to control updates.'
+                    item3: 'Type in the filter box to narrow the list by queue name.'
+                detail:
+                    title: 'Queue detail'
+                    item1: 'Selecting a queue shows its current message counts (total, ready, unacknowledged) and consumer count.'
+                    item2: 'The history chart and table show the recent message-count samples that RabbitMQ retains (short-term history).'
+                    item3: 'Longer-term history beyond what RabbitMQ keeps would require periodic snapshots stored by a scheduled job.'
+                preview:
+                    title: 'Message preview'
+                    item1: 'The preview fetches up to 10 messages and immediately requeues them, so no messages are consumed or lost.'
+                    item2: 'Payloads are shown as text and pretty-printed when they are valid JSON.'
+        api_collection:
+            hint: 'Build and send HTTP requests from your browser. Collections are saved; runs are logged.'
+            help: 'API Collection help'
+            filter_placeholder: 'Filter...'
+            new_folder: 'New folder'
+            history_title: 'Run history'
+            url_placeholder: 'https://example.com/api/resource'
+            send: 'Send'
+            tab_params: 'Params'
+            tab_body: 'Body'
+            tab_headers: 'Headers'
+            add_row: 'Add row'
+            body_none: 'None'
+            body_form: 'Form (urlencoded)'
+            body_raw: 'Raw'
+            body_placeholder: 'Request body...'
+            beautify: 'Beautify'
+            no_response: 'Send a request to see the response here.'
+            select_request: 'Select a request on the left, or create one, to start.'
+            response: 'Response'
+            maximize: 'Maximize / restore'
+            toggle_sidebar: 'Toggle sidebar'
+            sidebar_empty: 'Nothing here yet.'
+            help_dialog:
+                intro: 'A lightweight REST client. Build requests on the right and organise them into folders on the left. Requests are executed server-side (proxied through the backend) so they are not blocked by browser CORS.'
+                collection:
+                    title: 'Collection'
+                    item1: 'Use the add-folder button or a node''s ⋮ menu to add folders/requests, rename, remove, duplicate, or import/export cURL. The filter box narrows the tree (folders are listed first).'
+                    item2: 'The lock icon marks a request public (open) or private (closed); only the owner can change visibility or edit a request.'
+                    item3: 'A request with unsaved changes is shown in bold with an inline save button; switching to another request auto-saves it, and the ⋮ menu offers Discard changes.'
+                request:
+                    title: 'Request & response'
+                    item1: 'Pick a method (the tree badge updates immediately), enter a URL and press Send.'
+                    item2: 'Use the Params, Body and Headers tabs. The body editor highlights JSON/XML and the Beautify button reformats it; the body type sets a default Content-Type unless you add one.'
+                    item3: 'The maximize buttons expand the request or the response area; the body editor grows to fill it.'
+                    item4: 'The response shows the status, time and size, with Headers/Body sub-tabs (JSON/XML are pretty-printed). Requests run server-side (proxied), so they are not subject to CORS.'
+                    item5: 'The collapsible right sidebar logs each run with its method, status, request name, datetime and response size.'

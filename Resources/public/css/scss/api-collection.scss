@@ -1,0 +1,566 @@
+/* @theme: admin.oro; */
+
+// CodeMirror token styles for runMode-highlighted responses.
+@use 'codemirror/lib/codemirror';
+
+$aaxis-api-border: #d9d9d9;
+
+.aaxis-api {
+    display: flex;
+    align-items: stretch;
+    height: calc(100vh - 220px);
+    min-height: 480px;
+    border: 1px solid $aaxis-api-border;
+    border-radius: 4px;
+    overflow: hidden;
+
+    &__titlebar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 14px;
+    }
+
+    &__title {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    &__title-hint {
+        color: #666;
+        text-align: right;
+    }
+
+    &__help-btn {
+        border: 0;
+        background: none;
+        padding: 0;
+        font-size: 18px;
+        line-height: 1;
+        color: #777;
+        cursor: pointer;
+
+        &:hover { color: #2b84ed; }
+    }
+
+    // --- Left sidebar ------------------------------------------------------
+    &__sidebar {
+        flex: 0 0 270px;
+        display: flex;
+        flex-direction: column;
+        min-width: 210px;
+        border-right: 1px solid $aaxis-api-border;
+        overflow: hidden;
+    }
+
+    &__sidebar-actions {
+        flex: 0 0 auto;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px;
+        border-bottom: 1px solid $aaxis-api-border;
+    }
+
+    &__filter {
+        flex: 1 1 auto;
+        min-width: 0;
+        margin: 0;
+        height: 32px;
+        box-sizing: border-box;
+    }
+
+    // Image-only add-folder action, vertically centered against the filter box.
+    &__add-folder {
+        position: relative;
+        flex: 0 0 auto;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 28px;
+        height: 32px;
+        padding: 0;
+        border: 0;
+        background: none;
+        color: #5c6b7a;
+        font-size: 16px;
+        line-height: 1;
+        cursor: pointer;
+
+        &:hover { color: #2b84ed; }
+    }
+
+    &__add-folder-badge {
+        position: absolute;
+        right: -1px;
+        bottom: 2px;
+        font-size: 8px;
+    }
+
+    // Tree + busy overlay.
+    &__tree-wrap {
+        position: relative;
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    &__busy {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: flex-start;
+        justify-content: center;
+        padding-top: 24px;
+        background: rgba(255, 255, 255, .6);
+        color: #5c6b7a;
+        font-size: 20px;
+        z-index: 5;
+    }
+
+    &__sidebar.is-busy {
+        .aaxis-api__tree { opacity: .4; pointer-events: none; }
+    }
+
+    &__tree {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow: auto;
+        margin: 0;
+        padding: 4px 0;
+        list-style: none;
+
+        .aaxis-api__tree {
+            padding: 0 0 0 14px;
+            overflow: visible;
+        }
+    }
+
+    &__node { margin: 0; }
+
+    &__node-label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 6px 4px 8px;
+        cursor: pointer;
+
+        &:hover { background: rgba(0, 0, 0, .04); }
+        &.is-active { background: rgba(43, 132, 237, .14); }
+
+        &:hover .aaxis-api__node-actions { visibility: visible; }
+    }
+
+    &__node-icon { color: #c79a3b; }
+
+    &__node-lock {
+        color: #c0392b;
+        cursor: pointer;
+
+        &.is-public { color: #1e7e45; }
+    }
+
+    &__node-name {
+        flex: 1 1 auto;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    &__node-label.is-dirty &__node-name { font-weight: 700; }
+
+    &__node-save {
+        flex: 0 0 auto;
+        border: 0;
+        background: none;
+        color: #2b84ed;
+        cursor: pointer;
+        font-size: 14px;
+        line-height: 1;
+        padding: 0 4px;
+
+        &:hover { color: #1f6fd6; }
+    }
+
+    &__node-actions {
+        flex: 0 0 auto;
+        visibility: hidden;
+        border: 0;
+        background: none;
+        color: #8a98a6;
+        cursor: pointer;
+        font-size: 16px;
+        line-height: 1;
+        padding: 0 4px;
+
+        &:hover { color: #2b3a4a; }
+    }
+
+    &__method-badge {
+        font-size: 10px;
+        font-weight: 700;
+        padding: 1px 4px;
+        border-radius: 3px;
+        background: #eef1f4;
+        color: #5c6b7a;
+    }
+
+    &__method-badge.is-get { background: #e7f6ec; color: #1e7e45; }
+    &__method-badge.is-post { background: #e1f0ff; color: #1f6fd6; }
+    &__method-badge.is-put { background: #fff4e0; color: #b8860b; }
+    &__method-badge.is-patch { background: #f0e9fb; color: #8e44ad; }
+    &__method-badge.is-delete { background: #fdecea; color: #c0392b; }
+    &__method-badge.is-options,
+    &__method-badge.is-head { background: #eef1f4; color: #5c6b7a; }
+
+    // --- Center ------------------------------------------------------------
+    &__main {
+        flex: 1 1 auto;
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        overflow: hidden;
+        position: relative;
+    }
+
+    // Mask shown over the request editor while no request is being viewed/edited.
+    &__main-mask {
+        display: none;
+        position: absolute;
+        inset: 0;
+        z-index: 10;
+        align-items: center;
+        justify-content: center;
+        padding: 16px;
+        text-align: center;
+        background: rgba(247, 248, 249, .7);
+        color: #8a98a6;
+    }
+
+    &__main.is-disabled &__main-mask { display: flex; }
+
+    // Maximize the request area (hide the response).
+    &__main.is-req-max {
+        .aaxis-api__panels { flex: 1 1 auto; max-height: none; }
+        .aaxis-api__res-head,
+        .aaxis-api__result { display: none; }
+    }
+
+    // Maximize the response area (hide the request tabs/panels).
+    &__main.is-res-max {
+        .aaxis-api__tabs,
+        .aaxis-api__panels { display: none; }
+    }
+
+    &__reqbar {
+        flex: 0 0 auto;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px;
+        border-bottom: 1px solid $aaxis-api-border;
+
+        .form-control,
+        .btn {
+            height: 36px;
+            min-height: 36px;
+            margin: 0;
+            box-sizing: border-box;
+        }
+    }
+
+    &__method { width: 100%; min-width: 0; padding-left: 4px; padding-right: 2px; }
+
+    // Oro wraps the native <select> in `.selector.fixedWidth.input-widget-select`; that wrapper
+    // (not the inner <select>) controls the rendered width, so size it here.
+    &__reqbar .selector.input-widget-select {
+        flex: 0 0 auto !important;
+        width: 120px !important;
+        min-width: 0 !important;
+    }
+
+    &__url {
+        flex: 1 1 auto;
+        min-width: 0;
+        font-family: SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+    }
+
+    &__send { flex: 0 0 auto; }
+
+    &__tabs {
+        flex: 0 0 auto;
+        display: flex;
+        gap: 2px;
+        padding: 6px 8px 0;
+        border-bottom: 1px solid $aaxis-api-border;
+    }
+
+    &__tab {
+        border: 1px solid $aaxis-api-border;
+        border-bottom: none;
+        border-radius: 4px 4px 0 0;
+        background: #f3f3f3;
+        padding: 5px 12px;
+        cursor: pointer;
+
+        &.is-active { background: #fff; font-weight: font-weight('bold'); }
+    }
+
+    &__max {
+        flex: 0 0 auto;
+        border: 0;
+        background: none;
+        color: #8a98a6;
+        cursor: pointer;
+        padding: 0 8px;
+        font-size: 14px;
+        line-height: 1;
+
+        &:hover { color: #2b3a4a; }
+    }
+
+    &__tabs &__max { margin-left: auto; align-self: center; }
+
+    &__res-head {
+        flex: 0 0 auto;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 6px 12px;
+        border-bottom: 1px solid $aaxis-api-border;
+        font-weight: font-weight('bold');
+        color: #2b3a4a;
+    }
+
+    &__panels {
+        flex: 0 0 auto;
+        max-height: 38%;
+        overflow: auto;
+        padding: 10px 8px;
+        border-bottom: 1px solid $aaxis-api-border;
+    }
+
+    &__body-bar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 6px;
+    }
+    &__body-type { width: auto; max-width: 200px; margin: 0; }
+
+    &__beautify { flex: 0 0 auto; }
+
+    &__body {
+        width: 100%;
+        min-height: 120px;
+        font-family: SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+        font-size: 12px;
+    }
+
+    .aaxis-api__panel[data-tab="body"] .CodeMirror {
+        height: 160px;
+        border: 1px solid $aaxis-api-border;
+        border-radius: 4px;
+    }
+
+    &__kv-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-bottom: 4px;
+    }
+
+    &__kv-key { flex: 0 0 32%; }
+    &__kv-value { flex: 1 1 auto; }
+
+    &__kv-del {
+        flex: 0 0 auto;
+        border: 0;
+        background: none;
+        color: #bbb;
+        cursor: pointer;
+        font-size: 16px;
+        line-height: 1;
+
+        &:hover { color: #c0392b; }
+    }
+
+    &__result {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow: auto;
+        padding: 10px 12px;
+
+        h5 { margin: 12px 0 4px; font-weight: font-weight('bold'); }
+    }
+
+    &__result-empty { color: #8a98a6; padding: 16px 0; }
+
+    &__res-meta { display: flex; align-items: center; gap: 14px; margin-bottom: 4px; }
+
+    &__status {
+        font-weight: 700;
+        color: #1e7e45;
+
+        &.is-3xx { color: #b8860b; }
+        &.is-4xx,
+        &.is-5xx { color: #c0392b; }
+    }
+
+    &__res-stat { color: #5c6b7a; font-size: 12px; }
+
+    &__res-tabs {
+        display: flex;
+        gap: 2px;
+        margin-bottom: 8px;
+        border-bottom: 1px solid $aaxis-api-border;
+    }
+
+    &__res-tab {
+        border: 1px solid $aaxis-api-border;
+        border-bottom: none;
+        border-radius: 4px 4px 0 0;
+        background: #f3f3f3;
+        padding: 4px 12px;
+        cursor: pointer;
+
+        &.is-active { background: #fff; font-weight: 700; }
+    }
+
+    &__res-headers {
+        font-family: SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+        font-size: 12px;
+        color: #5c6b7a;
+        word-break: break-all;
+    }
+
+    &__res-hkey { font-weight: 700; color: #2b3a4a; }
+
+    &__res-body {
+        margin: 0;
+        padding: 10px;
+        background: #fff;
+        border: 1px solid $aaxis-api-border;
+        border-radius: 4px;
+        font-family: SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+        font-size: 12px;
+        white-space: pre-wrap;
+        word-break: break-word;
+    }
+
+    // --- Right sidebar (run history) ---------------------------------------
+    &__rightbar {
+        position: relative;
+        flex: 0 0 280px;
+        border-left: 1px solid $aaxis-api-border;
+        transition: flex-basis .15s ease;
+
+        &.is-collapsed { flex-basis: 18px; }
+    }
+
+    &__rightbar-toggle {
+        position: absolute;
+        top: 8px;
+        right: 0;
+        width: 18px;
+        height: 28px;
+        border: 1px solid $aaxis-api-border;
+        border-right: 0;
+        background: #f3f3f3;
+        color: #5c6b7a;
+        cursor: pointer;
+        border-radius: 4px 0 0 4px;
+        z-index: 2;
+    }
+
+    &__rightbar-body { height: 100%; padding: 10px 34px 10px 12px; overflow: auto; }
+    &__rightbar.is-collapsed &__rightbar-body { display: none; }
+    &__rightbar-title { margin: 0 0 8px; font-weight: font-weight('bold'); }
+
+    &__runs { margin: 0; padding: 0; list-style: none; }
+
+    &__run {
+        padding: 6px 0;
+        border-bottom: 1px solid #f0f0f0;
+    }
+
+    &__run-line { display: flex; align-items: center; gap: 8px; }
+
+    &__run-method {
+        font-size: 10px;
+        font-weight: 700;
+        padding: 1px 4px;
+        border-radius: 3px;
+        background: #eef1f4;
+        color: #5c6b7a;
+
+        &.is-get { background: #e7f6ec; color: #1e7e45; }
+        &.is-post { background: #e1f0ff; color: #1f6fd6; }
+        &.is-put { background: #fff4e0; color: #b8860b; }
+        &.is-patch { background: #f0e9fb; color: #8e44ad; }
+        &.is-delete { background: #fdecea; color: #c0392b; }
+    }
+
+    &__run-status {
+        font-weight: 700;
+
+        &.is-ok { color: #1e7e45; }
+        &.is-fail { color: #c0392b; }
+    }
+
+    &__run-name {
+        flex: 1 1 auto;
+        font-size: 12px;
+        color: #2b3a4a;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    &__run-url {
+        font-size: 12px;
+        color: #2b3a4a;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    &__run-foot {
+        display: flex;
+        justify-content: space-between;
+        color: #8a98a6;
+        font-size: 11px;
+    }
+
+    &__run-empty { color: #8a98a6; font-size: 12px; }
+}
+
+// Context flyout menu (appended to <body>).
+.aaxis-api__menu {
+    position: absolute;
+    z-index: 1200;
+    min-width: 160px;
+    margin: 0;
+    padding: 4px 0;
+    list-style: none;
+    background: #fff;
+    border: 1px solid #d9d9d9;
+    border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, .15);
+
+    li { margin: 0; }
+
+    a {
+        display: block;
+        padding: 6px 16px;
+        color: inherit;
+        text-decoration: none;
+        white-space: nowrap;
+
+        &:hover { background: rgba(0, 0, 0, .06); }
+    }
+}

@@ -1,0 +1,122 @@
+system_configuration:
+    groups:
+        aaxis_tools:
+            title: aaxis.tools.config.group.title
+            icon: fa-wrench
+        aaxis_tools_queue_monitor:
+            title: aaxis.tools.config.queue_monitor.title
+        aaxis_tools_api_collection:
+            title: aaxis.tools.config.api_collection.title
+        aaxis_tools_base64:
+            title: aaxis.tools.config.base64.title
+
+    fields:
+        # --- Queue Monitor ---
+        aaxis_tools.queue_monitor_enabled:
+            data_type: boolean
+            type: Oro\Bundle\ConfigBundle\Form\Type\ConfigCheckbox
+            options:
+                label: aaxis.tools.config.enabled.label
+                required: false
+        aaxis_tools.queue_monitor_test:
+            data_type: string
+            type: Symfony\Component\Form\Extension\Core\Type\TextType
+            options:
+                label: aaxis.tools.config.test.label
+                required: false
+                resettable: false
+                attr:
+                    data-page-component-module: 'aaxiscommon/js/app/components/connection-test-component'
+                    data-page-component-options: '{"tool":"queue_monitor"}'
+        aaxis_tools.queue_monitor_allow_multiselect:
+            data_type: boolean
+            type: Oro\Bundle\ConfigBundle\Form\Type\ConfigCheckbox
+            options:
+                label: aaxis.tools.config.queue_monitor.allow_multiselect.label
+                required: false
+        aaxis_tools.queue_monitor_allow_color_selection:
+            data_type: boolean
+            type: Oro\Bundle\ConfigBundle\Form\Type\ConfigCheckbox
+            options:
+                label: aaxis.tools.config.queue_monitor.allow_color_selection.label
+                required: false
+        aaxis_tools.queue_monitor_allow_message_preview:
+            data_type: boolean
+            type: Oro\Bundle\ConfigBundle\Form\Type\ConfigCheckbox
+            options:
+                label: aaxis.tools.config.queue_monitor.allow_message_preview.label
+                required: false
+        aaxis_tools.queue_monitor_max_message_fetch:
+            data_type: integer
+            type: Symfony\Component\Form\Extension\Core\Type\IntegerType
+            options:
+                label: aaxis.tools.config.queue_monitor.max_message_fetch.label
+                tooltip: aaxis.tools.config.queue_monitor.max_message_fetch.tooltip
+                required: false
+        aaxis_tools.queue_monitor_history_samples:
+            data_type: integer
+            type: Symfony\Component\Form\Extension\Core\Type\IntegerType
+            options:
+                label: aaxis.tools.config.queue_monitor.history_samples.label
+                tooltip: aaxis.tools.config.queue_monitor.history_samples.tooltip
+                required: false
+        aaxis_tools.queue_monitor_history_interval:
+            data_type: integer
+            type: Symfony\Component\Form\Extension\Core\Type\IntegerType
+            options:
+                label: aaxis.tools.config.queue_monitor.history_interval.label
+                tooltip: aaxis.tools.config.queue_monitor.history_interval.tooltip
+                required: false
+
+        # --- API Collection ---
+        aaxis_tools.api_collection_enabled:
+            data_type: boolean
+            type: Oro\Bundle\ConfigBundle\Form\Type\ConfigCheckbox
+            options:
+                label: aaxis.tools.config.enabled.label
+                required: false
+        aaxis_tools.api_collection_history_retention_days:
+            data_type: integer
+            type: Symfony\Component\Form\Extension\Core\Type\IntegerType
+            options:
+                label: aaxis.tools.config.history_retention.label
+                tooltip: aaxis.tools.config.history_retention.tooltip
+                required: false
+
+        # --- Base64 ---
+        aaxis_tools.base64_enabled:
+            data_type: boolean
+            type: Oro\Bundle\ConfigBundle\Form\Type\ConfigCheckbox
+            options:
+                label: aaxis.tools.config.enabled.label
+                required: false
+
+    tree:
+        system_configuration:
+            platform:
+                children:
+                    general_setup:
+                        children:
+                            aaxis_tools:
+                                priority: 100
+                                children:
+                                    aaxis_tools_queue_monitor:
+                                        priority: 60
+                                        children:
+                                            - aaxis_tools.queue_monitor_enabled
+                                            - aaxis_tools.queue_monitor_test
+                                            - aaxis_tools.queue_monitor_allow_multiselect
+                                            - aaxis_tools.queue_monitor_allow_color_selection
+                                            - aaxis_tools.queue_monitor_allow_message_preview
+                                            - aaxis_tools.queue_monitor_max_message_fetch
+                                            - aaxis_tools.queue_monitor_history_samples
+                                            - aaxis_tools.queue_monitor_history_interval
+                                    aaxis_tools_api_collection:
+                                        priority: 40
+                                        children:
+                                            - aaxis_tools.api_collection_enabled
+                                            - aaxis_tools.api_collection_history_retention_days
+                                    aaxis_tools_base64:
+                                        priority: 35
+                                        children:
+                                            - aaxis_tools.base64_enabled

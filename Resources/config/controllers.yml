@@ -1,0 +1,32 @@
+services:
+    _defaults:
+        public: true
+
+    Aaxis\Bundle\ToolsBundle\Controller\ToolsController:
+        calls:
+            - [setContainer, ['@Psr\Container\ContainerInterface']]
+        tags:
+            - { name: container.service_subscriber }
+            - { name: container.service_subscriber, id: oro_config.global, key: Oro\Bundle\ConfigBundle\Config\ConfigManager }
+
+    Aaxis\Bundle\ToolsBundle\Controller\ApiCollectionController:
+        calls:
+            - [setContainer, ['@Psr\Container\ContainerInterface']]
+        tags:
+            - { name: container.service_subscriber }
+            - { name: container.service_subscriber, id: aaxis_tools.api_collection_manager, key: Aaxis\Bundle\ToolsBundle\Manager\ApiCollectionManager }
+            - { name: container.service_subscriber, id: aaxis_tools.api_request_executor, key: Aaxis\Bundle\ToolsBundle\Http\ApiRequestExecutor }
+
+    Aaxis\Bundle\ToolsBundle\Controller\Base64Controller:
+        calls:
+            - [setContainer, ['@Psr\Container\ContainerInterface']]
+        tags:
+            - { name: container.service_subscriber }
+
+    Aaxis\Bundle\ToolsBundle\Controller\QueueMonitorController:
+        calls:
+            - [setContainer, ['@Psr\Container\ContainerInterface']]
+        tags:
+            - { name: container.service_subscriber }
+            - { name: container.service_subscriber, id: aaxis_tools.rabbitmq_management_client, key: Aaxis\Bundle\ToolsBundle\Queue\RabbitMqManagementClient }
+            - { name: container.service_subscriber, id: oro_config.global, key: Oro\Bundle\ConfigBundle\Config\ConfigManager }

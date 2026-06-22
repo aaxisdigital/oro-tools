@@ -1,0 +1,33 @@
+features:
+    aaxis_tools_queue_monitor:
+        label: aaxis.tools.feature.queue_monitor.label
+        toggle: aaxis_tools.queue_monitor_enabled
+        navigation_items:
+            - application_menu.aaxis_tab.aaxis_tools_group.aaxis_tools_queue_monitor
+        routes:
+            - aaxis_tools_queue_monitor
+            - aaxis_tools_queue_monitor_queues
+            - aaxis_tools_queue_monitor_queue
+            - aaxis_tools_queue_monitor_messages
+
+    aaxis_tools_api_collection:
+        label: aaxis.tools.feature.api_collection.label
+        toggle: aaxis_tools.api_collection_enabled
+        navigation_items:
+            - application_menu.aaxis_tab.aaxis_tools_group.aaxis_tools_api_collection
+        routes:
+            - aaxis_tools_api_collection
+            - aaxis_tools_api_collection_tree
+            - aaxis_tools_api_collection_create
+            - aaxis_tools_api_collection_update
+            - aaxis_tools_api_collection_delete
+            - aaxis_tools_api_collection_duplicate
+            - aaxis_tools_api_collection_run
+
+    aaxis_tools_base64:
+        label: aaxis.tools.feature.base64.label
+        toggle: aaxis_tools.base64_enabled
+        navigation_items:
+            - application_menu.aaxis_tab.aaxis_tools_group.aaxis_tools_base64
+        routes:
+            - aaxis_tools_base64

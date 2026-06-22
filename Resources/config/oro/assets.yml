@@ -1,0 +1,8 @@
+css:
+    inputs:
+        # Queue Monitor page styles.
+        - 'bundles/aaxistools/css/scss/queue-monitor.scss'
+        # API Collection page styles.
+        - 'bundles/aaxistools/css/scss/api-collection.scss'
+        # Base64 tool page styles.
+        - 'bundles/aaxistools/css/scss/base64.scss'

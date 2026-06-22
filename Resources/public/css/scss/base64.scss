@@ -1,0 +1,273 @@
+/* @theme: admin.oro; */
+
+$aaxis-b64-border: #d9d9d9;
+$aaxis-b64-accent: #2b84ed;
+$aaxis-b64-muted: #6f7681;
+
+.aaxis-base64 {
+    // Title row: title on the left, encode/decode switch on the right.
+    &__titlebar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        flex-wrap: wrap;
+        margin-bottom: 16px;
+    }
+
+    &__title {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    // --- Toolbar: mode + source segmented controls ------------------------
+    &__toolbar {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        flex-wrap: wrap;
+        margin-bottom: 14px;
+    }
+
+    &__modes,
+    &__sources {
+        display: inline-flex;
+        border: 1px solid $aaxis-b64-border;
+        border-radius: 6px;
+        overflow: hidden;
+        background: #fff;
+    }
+
+    &__mode,
+    &__source {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        border: 0;
+        background: none;
+        padding: 7px 16px;
+        color: #2b3a4a;
+        cursor: pointer;
+        font-size: 13px;
+        line-height: 1;
+
+        & + & {
+            border-left: 1px solid $aaxis-b64-border;
+        }
+
+        &:hover {
+            background: rgba(43, 132, 237, .08);
+        }
+
+        &.is-active {
+            background: $aaxis-b64-accent;
+            color: #fff;
+        }
+    }
+
+    &__source {
+        padding: 7px 18px;
+        font-size: 12px;
+    }
+
+    // --- Workspace: input | swap | output ---------------------------------
+    &__workspace {
+        display: flex;
+        align-items: stretch;
+        gap: 12px;
+    }
+
+    &__io {
+        flex: 1 1 0;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        border: 1px solid $aaxis-b64-border;
+        border-radius: 6px;
+        background: #fff;
+        overflow: hidden;
+    }
+
+    &__io-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 8px 12px;
+        border-bottom: 1px solid $aaxis-b64-border;
+        background: #f7f8f9;
+    }
+
+    &__io-title {
+        font-weight: 600;
+        color: #2b3a4a;
+    }
+
+    &__count {
+        font-size: 11px;
+        color: $aaxis-b64-muted;
+    }
+
+    &__area {
+        flex: 1 1 auto;
+        width: 100%;
+        min-height: 320px;
+        height: calc(100vh - 360px);
+        margin: 0;
+        padding: 12px;
+        border: 0;
+        resize: none;
+        font-family: SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+        font-size: 12px;
+        line-height: 1.5;
+        color: #1a3b5d;
+
+        &:focus {
+            outline: none;
+            box-shadow: inset 0 0 0 2px rgba(43, 132, 237, .25);
+        }
+
+        &[readonly] {
+            background: #fbfdff;
+        }
+    }
+
+    // --- Dropzone ---------------------------------------------------------
+    &__dropzone {
+        flex: 1 1 auto;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        min-height: 320px;
+        height: calc(100vh - 360px);
+        margin: 10px;
+        padding: 24px;
+        border: 2px dashed $aaxis-b64-border;
+        border-radius: 6px;
+        text-align: center;
+        color: $aaxis-b64-muted;
+        transition: border-color .15s ease, background .15s ease;
+
+        &.is-dragover {
+            border-color: $aaxis-b64-accent;
+            background: rgba(43, 132, 237, .06);
+        }
+    }
+
+    &__dropzone-icon {
+        font-size: 40px;
+        color: #b6c0cc;
+    }
+
+    &__dropzone-text {
+        margin: 0;
+    }
+
+    &__file-name {
+        margin: 0;
+        font-weight: 600;
+        color: #2b3a4a;
+        word-break: break-all;
+    }
+
+    &__link {
+        border: 0;
+        background: none;
+        padding: 0;
+        color: $aaxis-b64-accent;
+        cursor: pointer;
+        text-decoration: underline;
+    }
+
+    // --- Binary result placeholder ----------------------------------------
+    &__binary {
+        flex: 1 1 auto;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        min-height: 320px;
+        height: calc(100vh - 360px);
+        padding: 24px;
+        text-align: center;
+        color: $aaxis-b64-muted;
+    }
+
+    &__binary-icon {
+        font-size: 44px;
+        color: #b6c0cc;
+    }
+
+    &__binary-text {
+        margin: 0;
+        max-width: 320px;
+    }
+
+    &__error {
+        margin: 8px 12px;
+        color: #c0392b;
+        font-size: 12px;
+    }
+
+    // --- Footers / swap ---------------------------------------------------
+    &__io-foot {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        border-top: 1px solid $aaxis-b64-border;
+        background: #f7f8f9;
+    }
+
+    // In the input footer, keep the Clear button on the left and push the text/file toggle right.
+    &__io-foot &__sources {
+        margin-left: auto;
+    }
+
+    &__swap-wrap {
+        display: flex;
+        align-items: center;
+    }
+
+    &__swap {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 36px;
+        height: 36px;
+        border: 1px solid $aaxis-b64-border;
+        border-radius: 50%;
+        background: #fff;
+        color: $aaxis-b64-accent;
+        cursor: pointer;
+        transition: background .15s ease;
+
+        &:hover {
+            background: rgba(43, 132, 237, .1);
+        }
+    }
+
+    &__hint {
+        margin: 12px 2px 0;
+        color: $aaxis-b64-muted;
+        font-size: 12px;
+    }
+
+    // Stack the panels on narrow viewports.
+    @media (max-width: 900px) {
+        &__workspace {
+            flex-direction: column;
+        }
+
+        &__swap-wrap {
+            justify-content: center;
+        }
+
+        &__swap .fa {
+            transform: rotate(90deg);
+        }
+    }
+}
