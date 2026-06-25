@@ -94,8 +94,8 @@ automatically (the project already has the Oro Composer registry, so `oro/platfo
 ```jsonc
 // composer.json
 "repositories": {
-    "aaxis-common": { "type": "vcs", "url": "git@github.com:aaxisdigital/oro-common.git" },
-    "aaxis-tools":  { "type": "vcs", "url": "git@github.com:aaxisdigital/oro-tools.git" }
+    "aaxis-common": { "type": "vcs", "url": "https://github.com/aaxisdigital/oro-common.git" },
+    "aaxis-tools":  { "type": "vcs", "url": "https://github.com/aaxisdigital/oro-tools.git" }
 }
 ```
 
