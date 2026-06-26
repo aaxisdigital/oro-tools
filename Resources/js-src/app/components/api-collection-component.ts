@@ -337,8 +337,18 @@ class ApiCollectionComponent extends BaseComponent {
         }
         this.activeId = node.id;
         this.dirty = false;
+        this.clearResponse();
         this.loadRequest(node);
         this.renderTree();
+    }
+
+    /** Drops the previously displayed response so it does not bleed into another request. */
+    private clearResponse(): void {
+        this.lastResponse = null;
+        this.resultTab = 'body';
+        this.$el.find('[data-role="result"]').empty().append(
+            $('<div/>', {'class': 'aaxis-api__result-empty', text: __('aaxis.tools.api_collection.no_response')})
+        );
     }
 
     // --- Node context menu ---------------------------------------------------

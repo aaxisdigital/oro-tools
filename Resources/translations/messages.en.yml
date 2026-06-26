@@ -48,6 +48,9 @@ aaxis:
                     label: 'Allow per-queue colour selection'
                 allow_message_preview:
                     label: 'Allow message preview'
+                preview_max_queues:
+                    label: 'Hide message preview above N selected queues'
+                    tooltip: 'When more than this many queues are selected, the message preview is hidden so it does not crowd the recent-samples table (default 4).'
                 max_message_fetch:
                     label: 'Max messages per preview'
                     tooltip: 'Hard limit on how many messages a single preview can fetch and requeue (default 100).'

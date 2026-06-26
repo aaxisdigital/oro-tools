@@ -58,7 +58,7 @@ class ApiCollectionController extends AbstractController
     {
         $manager = $this->manager();
         $node = $manager->findNode($id);
-        if ($node === null) {
+        if ($node === null || !$manager->canView($node)) {
             return new JsonResponse(['success' => false, 'message' => 'Not found.'], 404);
         }
         $payload = json_decode($request->getContent(), true);
@@ -85,7 +85,7 @@ class ApiCollectionController extends AbstractController
     {
         $manager = $this->manager();
         $node = $manager->findNode($id);
-        if ($node === null) {
+        if ($node === null || !$manager->canView($node)) {
             return new JsonResponse(['success' => false, 'message' => 'Not found.'], 404);
         }
         try {
@@ -108,7 +108,7 @@ class ApiCollectionController extends AbstractController
     {
         $manager = $this->manager();
         $node = $manager->findNode($id);
-        if ($node === null) {
+        if ($node === null || !$manager->canView($node)) {
             return new JsonResponse(['success' => false, 'message' => 'Not found.'], 404);
         }
         $copy = $manager->duplicateNode($node);
@@ -163,22 +163,31 @@ class ApiCollectionController extends AbstractController
         $result = $this->executor()->execute($method, $url, $headers, $body, (int) ($payload['timeout'] ?? 0));
 
         $manager = $this->manager();
-        $manager->recordRun([
-            'requestId' => $payload['requestId'] ?? null,
-            'name' => $payload['name'] ?? null,
-            'method' => $method,
-            'url' => $url,
-            'status' => $result['status'] ?? null,
-            'result' => ($result['success'] ?? false) ? ApiCollectionRunHistory::RESULT_SUCCESS : ApiCollectionRunHistory::RESULT_ERROR,
-            'sizeBytes' => $result['size'] ?? 0,
-            'timeMs' => $result['timeMs'] ?? null,
-        ]);
-
-        return new JsonResponse([
+        $response = [
             'success' => $result['success'] ?? false,
             'response' => $result,
-            'runs' => array_map($this->serializeRun(...), $manager->getRecentRuns()),
-        ]);
+        ];
+
+        // The proxied request already ran — persisting/fetching the run history is secondary, so a
+        // storage failure must not turn a successful request into a 500. Omit "runs" on failure;
+        // the UI keeps its current history list when the key is absent.
+        try {
+            $manager->recordRun([
+                'requestId' => $payload['requestId'] ?? null,
+                'name' => $payload['name'] ?? null,
+                'method' => $method,
+                'url' => $url,
+                'status' => $result['status'] ?? null,
+                'result' => ($result['success'] ?? false) ? ApiCollectionRunHistory::RESULT_SUCCESS : ApiCollectionRunHistory::RESULT_ERROR,
+                'sizeBytes' => $result['size'] ?? 0,
+                'timeMs' => $result['timeMs'] ?? null,
+            ]);
+            $response['runs'] = array_map($this->serializeRun(...), $manager->getRecentRuns());
+        } catch (\Throwable) {
+            // run history is best-effort; the response above is still returned
+        }
+
+        return new JsonResponse($response);
     }
 
     /**

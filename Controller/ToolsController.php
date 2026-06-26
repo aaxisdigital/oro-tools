@@ -28,6 +28,7 @@ class ToolsController extends AbstractController
                 'allowMultiselect' => (bool) $config->get('aaxis_tools.queue_monitor_allow_multiselect'),
                 'allowColorSelection' => (bool) $config->get('aaxis_tools.queue_monitor_allow_color_selection'),
                 'allowMessagePreview' => (bool) $config->get('aaxis_tools.queue_monitor_allow_message_preview'),
+                'previewMaxQueues' => max(1, min((int) $config->get('aaxis_tools.queue_monitor_preview_max_queues'), 100)),
                 'maxMessageFetch' => max(1, min((int) $config->get('aaxis_tools.queue_monitor_max_message_fetch'), 1000)),
                 'historySamples' => max(2, min((int) $config->get('aaxis_tools.queue_monitor_history_samples'), 500)),
             ],

@@ -109,9 +109,9 @@ and `src/` — no `AppKernel` edit needed). It requires `AaxisCommonBundle`. Aft
 
 ```bash
 php bin/console cache:clear --no-interaction
-php bin/console oro:migration:load --force                 # creates the API Collection tables (+ admin ACL)
-php bin/console aaxis:tools:typescript:compile             # compile this bundle's TypeScript
-php bin/console oro:assets:build --no-interaction
+php bin/console oro:migration:load --force                 # creates the API Collection tables
+php bin/console oro:migration:data:load --no-interaction   # grants the aaxis_tools ACL to the Administrator role
+php bin/console oro:assets:build --no-interaction          # also compiles this bundle's TypeScript
 php bin/console oro:translation:load --no-interaction
 php bin/console oro:translation:rebuild-cache --no-interaction
 php bin/console oro:cron:definitions:load                  # registers aaxis:tools:history:cleanup

@@ -416,17 +416,7 @@ $aaxis-qm-splitter-hover: #b7b7b7;
         }
     }
 
-    // Legend / per-queue stats table (doubles as the chart legend).
-    &__legend {
-        margin-bottom: 8px;
-    }
-
-    &__legend-table {
-        width: auto;
-        min-width: 360px;
-        margin-bottom: 0;
-    }
-
+    // Colour key shown next to each queue name in the recent-samples table header.
     &__legend-swatch {
         display: inline-block;
         width: 12px;
@@ -434,11 +424,6 @@ $aaxis-qm-splitter-hover: #b7b7b7;
         margin-right: 4px;
         border-radius: 2px;
         vertical-align: middle;
-    }
-
-    &__legend-name {
-        font-weight: font-weight('bold');
-        word-break: break-all;
     }
 
     &__chart {

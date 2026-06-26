@@ -33,11 +33,54 @@ class ApiCollectionManager
     }
 
     /**
+     * The nodes the current user may see in the tree.
+     *
+     * Visibility is driven by requests only — a request is visible when it is public or owned by the
+     * user. Folders are not visibility-gated: a folder is shown when it (or any descendant) contains
+     * a visible request, plus the user always sees their own folders so empty ones can still be
+     * filled. Ancestor folders of any visible node are always included so the tree path renders.
+     *
      * @return ApiCollectionRequest[]
      */
     public function getVisibleNodes(): array
     {
-        return $this->requestRepository()->findVisibleForUser($this->getCurrentUserId());
+        $userId = $this->getCurrentUserId();
+        $all = $this->requestRepository()->findAll();
+
+        $byId = [];
+        foreach ($all as $node) {
+            $byId[$node->getId()] = $node;
+        }
+
+        $visible = [];
+        $include = static function (ApiCollectionRequest $node) use (&$include, &$visible, $byId): void {
+            if (isset($visible[$node->getId()])) {
+                return;
+            }
+            $visible[$node->getId()] = $node;
+            $parentId = $node->getParentId();
+            if ($parentId !== null && isset($byId[$parentId])) {
+                $include($byId[$parentId]); // pull in ancestor folders so the path is complete
+            }
+        };
+
+        foreach ($all as $node) {
+            $owned = $this->isOwnedBy($node, $userId);
+            $visibleRequest = !$node->isFolder() && ($node->isPublic() || $owned);
+            $ownFolder = $node->isFolder() && $owned;
+            if ($visibleRequest || $ownFolder) {
+                $include($node);
+            }
+        }
+
+        return array_values($visible);
+    }
+
+    private function isOwnedBy(ApiCollectionRequest $node, ?int $userId): bool
+    {
+        $owner = $node->getUser();
+
+        return $owner === null || ($userId !== null && $owner->getId() === $userId);
     }
 
     /**
@@ -112,6 +155,8 @@ class ApiCollectionManager
 
     public function duplicateNode(ApiCollectionRequest $node): ApiCollectionRequest
     {
+        $this->assertCanView($node);
+
         $copy = new ApiCollectionRequest();
         $copy->setType($node->getType());
         $copy->setName($node->getName() . ' (copy)');
@@ -185,15 +230,29 @@ class ApiCollectionManager
 
     public function canModify(ApiCollectionRequest $node): bool
     {
-        $userId = $this->getCurrentUserId();
+        return $this->isOwnedBy($node, $this->getCurrentUserId());
+    }
 
-        return $node->getUser() === null || ($userId !== null && $node->getUser()->getId() === $userId);
+    /**
+     * A node is viewable when it is public or owned by the current user. Private nodes belonging to
+     * someone else must stay invisible — callers should treat a non-viewable node as "not found".
+     */
+    public function canView(ApiCollectionRequest $node): bool
+    {
+        return $node->isPublic() || $this->canModify($node);
     }
 
     private function assertOwner(ApiCollectionRequest $node): void
     {
         if (!$this->canModify($node)) {
             throw new \RuntimeException('You can only modify your own items.');
+        }
+    }
+
+    private function assertCanView(ApiCollectionRequest $node): void
+    {
+        if (!$this->canView($node)) {
+            throw new \RuntimeException('You do not have access to this item.');
         }
     }
 

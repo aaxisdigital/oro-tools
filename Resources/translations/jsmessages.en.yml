@@ -42,6 +42,7 @@ aaxis:
             messages_title: 'Messages'
             preview_btn: 'Preview messages'
             preview_note: 'Fetched and immediately returned to the queue (non-destructive).'
+            preview_hidden_many: 'Message preview is hidden while more than {{ max }} queues are selected. Select fewer queues to preview their messages.'
             preview_count_title: 'Number of messages to preview (max {{ max }})'
             preview_error: 'Unable to preview messages.'
             no_messages: 'The queue is currently empty.'

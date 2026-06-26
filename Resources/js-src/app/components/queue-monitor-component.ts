@@ -12,6 +12,7 @@ interface QueueMonitorOptions {
     allowMultiselect?: boolean;
     allowColorSelection?: boolean;
     allowMessagePreview?: boolean;
+    previewMaxQueues?: number;
     historySamples?: number;
     maxMessageFetch?: number;
 }
@@ -56,18 +57,32 @@ const DEFAULT_PREVIEW_MESSAGES = 10;
 // configuration (queue_monitor_max_message_fetch, default 100) via the maxMessageFetch option.
 const MAX_PREVIEW_MESSAGES = 1000;
 const DEFAULT_MAX_MESSAGE_FETCH = 100;
+// Default for the previewMaxQueues option: above this many simultaneously-selected queues the
+// message preview is hidden, so it doesn't crowd the (by then much wider) recent-samples table.
+// Overridable via the queue_monitor_preview_max_queues system configuration setting.
+const DEFAULT_PREVIEW_MAX_QUEUES = 4;
 
-// Distinct palette for per-queue line colours (8 well-separated swatches).
+// Distinct palette for per-queue line colours. Ordered so the first eight hues are as
+// far apart as possible (the common 6-8 selected-queue case reads clearly on the chart);
+// the remaining eight extend the set so larger selections repeat colours far less often.
+// All are saturated/dark enough to stay legible as thin lines on a white background.
 const PALETTE = [
+    // Maximally-distinct core (1-8).
     '#2b84ed', '#e6492d', '#27ae60', '#f39c12',
-    '#8e44ad', '#16a085', '#d81b60', '#34495e'
+    '#8e44ad', '#00bcd4', '#d81b60', '#795548',
+    // Extended fills (9-16).
+    '#34495e', '#8bc34a', '#ff7043', '#3f51b5',
+    '#009688', '#c2185b', '#9e9d24', '#607d8b'
 ];
 
 /**
  * Queue Monitor page component: lists RabbitMQ queues (outstanding messages + consumers),
  * lets the user select one or many queues (each with a chosen colour), and plots their
  * recent message-count history as a multi-series line chart (with a maximize mode showing a
- * Y axis). Messages can be previewed non-destructively (fetched and immediately requeued).
+ * Y axis). The colour/queue mapping and the per-queue counters live in the recent-samples
+ * table and the left sidebar, so the chart is shown without a separate legend table.
+ * Messages can be previewed non-destructively (fetched and immediately requeued); the preview
+ * is hidden once more than previewMaxQueues queues are selected (configurable).
  *
  * NOTE: instance state is initialised inside initialize() (not via class field initializers).
  */
@@ -83,12 +98,14 @@ class QueueMonitorComponent extends BaseComponent {
     private colors!: Record<string, string>;
     private details!: Record<string, QueueDetail>;
     private maximized!: boolean;
+    private previewSuppressed!: boolean;
     private refreshTimer!: number | null;
     private resizeRaf!: number | null;
 
     private allowMultiselect!: boolean;
     private allowColorSelection!: boolean;
     private allowMessagePreview!: boolean;
+    private previewMaxQueues!: number;
     private historySamples!: number;
     private maxMessageFetch!: number;
 
@@ -101,6 +118,9 @@ class QueueMonitorComponent extends BaseComponent {
         this.allowMultiselect = options.allowMultiselect !== false;
         this.allowColorSelection = options.allowColorSelection !== false;
         this.allowMessagePreview = options.allowMessagePreview !== false;
+        this.previewMaxQueues = options.previewMaxQueues && options.previewMaxQueues > 0
+            ? options.previewMaxQueues
+            : DEFAULT_PREVIEW_MAX_QUEUES;
         this.historySamples = options.historySamples && options.historySamples > 0 ? options.historySamples : 15;
         this.maxMessageFetch = options.maxMessageFetch && options.maxMessageFetch > 0
             ? Math.min(options.maxMessageFetch, MAX_PREVIEW_MESSAGES)
@@ -112,6 +132,7 @@ class QueueMonitorComponent extends BaseComponent {
         this.colors = {};
         this.details = {};
         this.maximized = false;
+        this.previewSuppressed = false;
         this.refreshTimer = null;
         this.resizeRaf = null;
 
@@ -464,6 +485,7 @@ class QueueMonitorComponent extends BaseComponent {
 
         if (this.selected.size === 0) {
             this.maximized = false;
+            this.previewSuppressed = false;
             this.$el.find('[data-role="layout"]').removeClass('is-maximized');
             $detail.append($('<div/>', {
                 'class': 'aaxis-queue-mon__placeholder',
@@ -491,7 +513,6 @@ class QueueMonitorComponent extends BaseComponent {
             'aria-hidden': 'true'
         })));
         $section.append($header);
-        $section.append($('<div/>', {'data-role': 'stats', 'class': 'aaxis-queue-mon__legend'}));
         $section.append($('<div/>', {'data-role': 'chart', 'class': 'aaxis-queue-mon__chart'}));
         $detail.append($section);
 
@@ -506,7 +527,7 @@ class QueueMonitorComponent extends BaseComponent {
         $left.append($('<div/>', {'data-role': 'samples'}));
         $cols.append($left);
 
-        if (this.allowMessagePreview) {
+        if (this.previewVisible()) {
             const $right = $('<div/>', {'class': 'aaxis-queue-mon__col'});
             $right.append($('<h3/>', {
                 'class': 'aaxis-queue-mon__section-title',
@@ -545,7 +566,27 @@ class QueueMonitorComponent extends BaseComponent {
 
         $detail.append($cols);
 
+        // Flash a top auto-fading notification the moment the preview becomes suppressed by
+        // the selection count (not when preview is disabled by configuration, and not again
+        // on every further selection change while it stays hidden).
+        const previewSuppressed = this.allowMessagePreview && this.selected.size > this.previewMaxQueues;
+        if (previewSuppressed && !this.previewSuppressed) {
+            messenger.notificationFlashMessage(
+                'info',
+                __('aaxis.tools.queue_monitor.preview_hidden_many', {max: this.previewMaxQueues})
+            );
+        }
+        this.previewSuppressed = previewSuppressed;
+
         this.updateDynamic();
+    }
+
+    /**
+     * The message preview is shown only when enabled in configuration and the selection is
+     * small enough that the preview column won't crowd the recent-samples table beside it.
+     */
+    private previewVisible(): boolean {
+        return this.allowMessagePreview && this.selected.size <= this.previewMaxQueues;
     }
 
     private onToggleMaximize(event: any): void {
@@ -568,42 +609,8 @@ class QueueMonitorComponent extends BaseComponent {
         if (this.selected.size === 0) {
             return;
         }
-        this.renderLegendStats();
         this.renderChart();
         this.renderSamplesTable();
-    }
-
-    private renderLegendStats(): void {
-        const $stats = this.$el.find('[data-role="stats"]');
-        if (!$stats.length) {
-            return;
-        }
-        $stats.empty();
-
-        const $table = $('<table/>', {'class': 'grid table table-bordered table-condensed aaxis-queue-mon__legend-table'});
-        const $head = $('<tr/>').appendTo($('<thead/>').appendTo($table));
-        ['', __('aaxis.tools.queue_monitor.queue'), __('aaxis.tools.queue_monitor.messages'),
-            __('aaxis.tools.queue_monitor.ready'), __('aaxis.tools.queue_monitor.unacked'),
-            __('aaxis.tools.queue_monitor.consumers')]
-            .forEach(label => $head.append($('<th/>', {text: label})));
-
-        const $body = $('<tbody/>').appendTo($table);
-        this.orderedSelected().forEach((name, idx) => {
-            const detail = this.details[name];
-            const color = this.colorFor(name, this.queues.findIndex(q => q.name === name));
-            const $tr = $('<tr/>').appendTo($body);
-            $tr.append($('<td/>').append($('<span/>', {
-                'class': 'aaxis-queue-mon__legend-swatch',
-                style: 'background:' + color
-            })));
-            $tr.append($('<td/>', {'class': 'aaxis-queue-mon__legend-name', text: name}));
-            $tr.append($('<td/>', {text: detail ? String(detail.messages) : '-'}));
-            $tr.append($('<td/>', {text: detail ? String(detail.messagesReady) : '-'}));
-            $tr.append($('<td/>', {text: detail ? String(detail.messagesUnacked) : '-'}));
-            $tr.append($('<td/>', {text: detail ? String(detail.consumers) : '-'}));
-        });
-
-        $stats.append($table);
     }
 
     // --- Multi-series chart --------------------------------------------------

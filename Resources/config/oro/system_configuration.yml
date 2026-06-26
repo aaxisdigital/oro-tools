@@ -46,6 +46,13 @@ system_configuration:
             options:
                 label: aaxis.tools.config.queue_monitor.allow_message_preview.label
                 required: false
+        aaxis_tools.queue_monitor_preview_max_queues:
+            data_type: integer
+            type: Symfony\Component\Form\Extension\Core\Type\IntegerType
+            options:
+                label: aaxis.tools.config.queue_monitor.preview_max_queues.label
+                tooltip: aaxis.tools.config.queue_monitor.preview_max_queues.tooltip
+                required: false
         aaxis_tools.queue_monitor_max_message_fetch:
             data_type: integer
             type: Symfony\Component\Form\Extension\Core\Type\IntegerType
@@ -108,6 +115,7 @@ system_configuration:
                                             - aaxis_tools.queue_monitor_allow_multiselect
                                             - aaxis_tools.queue_monitor_allow_color_selection
                                             - aaxis_tools.queue_monitor_allow_message_preview
+                                            - aaxis_tools.queue_monitor_preview_max_queues
                                             - aaxis_tools.queue_monitor_max_message_fetch
                                             - aaxis_tools.queue_monitor_history_samples
                                             - aaxis_tools.queue_monitor_history_interval
