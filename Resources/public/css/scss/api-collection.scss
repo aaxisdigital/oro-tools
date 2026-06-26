@@ -630,3 +630,47 @@ $aaxis-api-border: #d9d9d9;
         color: #c0392b;
     }
 }
+
+// Reference chip rendered in place of a {{res:...}} token in the body editor.
+.aaxis-api__ref-chip {
+    display: inline-block;
+    max-width: 320px;
+    overflow: hidden;
+    vertical-align: bottom;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding: 0 6px;
+    border: 1px solid #b3d3f5;
+    border-radius: 10px;
+    background: #e7f0fd;
+    color: #1f6fd6;
+    font-size: 11px;
+    line-height: 16px;
+    cursor: pointer;
+
+    &:hover {
+        background: #d4e6fc;
+    }
+}
+
+// "From this session" marker on a restored (cached) response.
+.aaxis-api__res-cached {
+    margin-left: auto;
+    padding: 0 8px;
+    border-radius: 9px;
+    background: #eef1f4;
+    color: #8a98a6;
+    font-size: 11px;
+    line-height: 18px;
+}
+
+// Discard button inside the unsaved-changes confirmation modal.
+.aaxis-api__confirm-discard {
+    margin-top: 4px;
+}
+
+// Blocks an Oro modal's footer anchors / close button while an async action runs.
+.aaxis-api__btn-disabled {
+    pointer-events: none;
+    opacity: .5;
+}

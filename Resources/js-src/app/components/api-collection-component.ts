@@ -3,6 +3,8 @@ import __ from 'orotranslation/js/translator';
 import messenger from 'oroui/js/messenger';
 import Modal from 'oroui/js/modal';
 import BaseComponent from 'oroui/js/app/components/base/component';
+import Select2View from 'oroform/js/app/views/select2-view';
+import 'jquery.select2';
 import CodeMirror from 'codemirror';
 import 'codemirror/addon/runmode/runmode';
 import 'codemirror/mode/javascript/javascript';
@@ -81,6 +83,8 @@ interface StoredResponse {
     contentType: string;
     body: string;
     headers: KvPair[];
+    timeMs: number;
+    size: number;
     at: string;
 }
 
@@ -115,8 +119,10 @@ class ApiCollectionComponent extends BaseComponent {
     private dirty!: boolean;
     private snapshot!: RequestData | null;
     private lastResponse!: LastResponse | null;
+    private lastResponseCached!: boolean;
     private resultTab!: string;
     private loadingRequest!: boolean;
+    private decorateRaf!: number | null;
 
     initialize(options: ApiCollectionOptions): void {
         this.$el = options._sourceElement;
@@ -134,8 +140,10 @@ class ApiCollectionComponent extends BaseComponent {
         this.dirty = false;
         this.snapshot = null;
         this.lastResponse = null;
+        this.lastResponseCached = false;
         this.resultTab = 'body';
         this.loadingRequest = false;
+        this.decorateRaf = null;
 
         this.bindEvents();
         this.initBodyEditor();
@@ -177,10 +185,11 @@ class ApiCollectionComponent extends BaseComponent {
 
         // Response-reference shortcut: typing "###" in the URL, a param value or a header value
         // opens the reference popup and replaces the trigger with an encoded token.
-        this.$el.on('input.aaxisApi',
-            '[data-role="url"], [data-role="params-rows"] .aaxis-api__kv-value, '
-            + '[data-role="headers-rows"] .aaxis-api__kv-value',
-            (e: any) => this.maybeTriggerRefInput(e.currentTarget));
+        const refInputs = '[data-role="url"], [data-role="params-rows"] .aaxis-api__kv-value, '
+            + '[data-role="headers-rows"] .aaxis-api__kv-value';
+        this.$el.on('input.aaxisApi', refInputs, (e: any) => this.maybeTriggerRefInput(e.currentTarget));
+        // Clicking inside an existing token (these inputs can't render chips) re-opens its editor.
+        this.$el.on('click.aaxisApi', refInputs, (e: any) => this.editInputTokenAtCaret(e.currentTarget));
 
         $(window).on('resize.aaxisApi', () => {
             if (this.activeTab === 'body') {
@@ -367,24 +376,87 @@ class ApiCollectionComponent extends BaseComponent {
     }
 
     private switchToRequest(node: ApiNode): void {
+        // Confirm before navigating away from a request with unsaved edits (only owned requests
+        // can ever be dirty), letting the user save, discard or stay.
         if (this.activeId !== null && this.activeId !== node.id && this.dirty) {
-            // auto-persist edits before leaving (avoids data loss)
-            this.saveActive(true);
+            this.confirmLeave(() => this.doSwitchToRequest(node));
+            return;
         }
+        this.doSwitchToRequest(node);
+    }
+
+    private doSwitchToRequest(node: ApiNode): void {
         this.activeId = node.id;
         this.dirty = false;
-        this.clearResponse();
         this.loadRequest(node);
+        // Re-show the response captured for this request earlier in the session, if any.
+        this.showStoredResponse(node.id);
         this.renderTree();
+    }
+
+    /**
+     * Prompts about unsaved changes. The default modal template has only OK/Cancel, so "Discard"
+     * lives in the body: OK = save & continue, Discard = continue without saving, Cancel = stay.
+     */
+    private confirmLeave(proceed: () => void): void {
+        const $body = $('<div/>', {'class': 'aaxis-api__confirm'});
+        $body.append($('<p/>', {text: __('aaxis.tools.api_collection.unsaved_body')}));
+        const $discard = $('<button/>', {
+            type: 'button', 'class': 'btn aaxis-api__confirm-discard',
+            text: __('aaxis.tools.api_collection.unsaved_discard')
+        });
+        $body.append($discard);
+
+        const modal = new Modal({
+            title: __('aaxis.tools.api_collection.unsaved_title'),
+            content: '',
+            okText: __('aaxis.tools.api_collection.unsaved_save'),
+            cancelText: __('aaxis.tools.api_collection.unsaved_keep'),
+            okCloses: false
+        });
+        modal.on('ok', () => {
+            this.saveActive(true);
+            modal.close();
+            proceed();
+        });
+        $discard.on('click', () => {
+            this.dirty = false;
+            modal.close();
+            proceed();
+        });
+        modal.open();
+        modal.$el.find('.modal-body').append($body);
     }
 
     /** Drops the previously displayed response so it does not bleed into another request. */
     private clearResponse(): void {
         this.lastResponse = null;
+        this.lastResponseCached = false;
         this.resultTab = 'body';
         this.$el.find('[data-role="result"]').empty().append(
             $('<div/>', {'class': 'aaxis-api__result-empty', text: __('aaxis.tools.api_collection.no_response')})
         );
+    }
+
+    /** Restores a request's response cached this session (so switching requests keeps its result). */
+    private showStoredResponse(id: number): void {
+        const stored = this.readStoredResponse(id);
+        if (!stored) {
+            this.clearResponse();
+            return;
+        }
+        this.lastResponse = {
+            status: stored.status,
+            statusText: stored.statusText || '',
+            headers: stored.headers || [],
+            body: stored.body || '',
+            contentType: stored.contentType || '',
+            timeMs: stored.timeMs || 0,
+            size: stored.size || 0
+        };
+        this.lastResponseCached = true;
+        this.resultTab = 'body';
+        this.renderResult();
     }
 
     // --- Node context menu ---------------------------------------------------
@@ -583,7 +655,10 @@ class ApiCollectionComponent extends BaseComponent {
             mode: null
         });
         this.bodyEditor.setSize('100%', '160px');
-        this.bodyEditor.on('change', () => this.markDirty());
+        this.bodyEditor.on('change', () => {
+            this.markDirty();
+            this.scheduleDecorate();
+        });
         this.bodyEditor.on('keyup', (cm: any, e: any) => {
             if (e.key !== '#') {
                 return;
@@ -688,6 +763,7 @@ class ApiCollectionComponent extends BaseComponent {
         if (this.bodyEditor) {
             this.bodyEditor.setValue(node.body || '');
             this.bodyEditor.setOption('mode', this.cmModeFor(node.bodyType || 'none'));
+            this.decorateBody();
         }
         this.renderKvRows('params', node.params || []);
         this.renderKvRows('headers', node.headers || []);
@@ -878,6 +954,7 @@ class ApiCollectionComponent extends BaseComponent {
                     timeMs: resp.timeMs || 0,
                     size: resp.size || 0
                 };
+                this.lastResponseCached = false;
                 if (this.activeId !== null) {
                     this.storeResponseFor(this.activeId, this.toStored(resp));
                 }
@@ -913,6 +990,12 @@ class ApiCollectionComponent extends BaseComponent {
         $meta.append($('<span/>', {'class': 'aaxis-api__status ' + statusClass, text: res.status + ' ' + (res.statusText || '')}));
         $meta.append($('<span/>', {'class': 'aaxis-api__res-stat', text: res.timeMs + ' ms'}));
         $meta.append($('<span/>', {'class': 'aaxis-api__res-stat', text: this.formatSize(res.size)}));
+        if (this.lastResponseCached) {
+            $meta.append($('<span/>', {
+                'class': 'aaxis-api__res-cached',
+                text: __('aaxis.tools.api_collection.cached_response')
+            }));
+        }
         $result.append($meta);
 
         const $tabs = $('<div/>', {'class': 'aaxis-api__res-tabs'});
@@ -1012,6 +1095,8 @@ class ApiCollectionComponent extends BaseComponent {
             contentType: resp.contentType || '',
             body: resp.body || '',
             headers: resp.headers || [],
+            timeMs: resp.timeMs || 0,
+            size: resp.size || 0,
             at: new Date().toISOString()
         };
     }
@@ -1315,6 +1400,76 @@ class ApiCollectionComponent extends BaseComponent {
         }
     }
 
+    // --- Body reference chips ------------------------------------------------
+
+    private scheduleDecorate(): void {
+        if (this.decorateRaf !== null) {
+            return;
+        }
+        this.decorateRaf = window.requestAnimationFrame(() => {
+            this.decorateRaf = null;
+            this.decorateBody();
+        });
+    }
+
+    /** Renders each {{res:...}} token in the body editor as a clickable chip (re-opens the editor). */
+    private decorateBody(): void {
+        const cm = this.bodyEditor;
+        if (!cm) {
+            return;
+        }
+        cm.getAllMarks().forEach((mk: any) => {
+            if (mk.__aaxisRef) {
+                mk.clear();
+            }
+        });
+        const text = cm.getValue();
+        if (text.indexOf(REF_TOKEN_PREFIX) === -1) {
+            return;
+        }
+        const re = new RegExp(REF_PATTERN, 'g');
+        let m: RegExpExecArray | null;
+        while ((m = re.exec(text)) !== null) {
+            const def = this.decodeRef(m[1]);
+            if (!def) {
+                continue;
+            }
+            const from = cm.posFromIndex(m.index);
+            const to = cm.posFromIndex(m.index + m[0].length);
+            const chip = this.buildChip(def);
+            const mark = cm.markText(from, to, {replacedWith: chip, atomic: true});
+            mark.__aaxisRef = true;
+            chip.addEventListener('mousedown', (e: any) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const range = mark.find();
+                if (range) {
+                    this.editBodyToken(range.from, range.to, def);
+                }
+            });
+        }
+    }
+
+    private buildChip(def: RefDef): HTMLElement {
+        const node = this.findNode(def.r);
+        const name = node ? node.name : ('#' + def.r);
+        const suffix = def.src === 'header' ? (def.h || 'header') : (def.q || 'body');
+        const span = document.createElement('span');
+        span.className = 'aaxis-api__ref-chip';
+        span.textContent = '↪ ' + name + ' · ' + suffix;
+        span.title = __('aaxis.tools.api_collection.ref_edit');
+        return span;
+    }
+
+    private editBodyToken(from: any, to: any, def: RefDef): void {
+        this.openRefPopup((token: string) => {
+            this.bodyEditor.replaceRange(token, from, to);
+            this.bodyEditor.focus();
+            this.markDirty();
+            this.scheduleDecorate();
+        }, def);
+    }
+
     // --- Reference popup -----------------------------------------------------
 
     private maybeTriggerRefInput(input: HTMLInputElement): void {
@@ -1335,7 +1490,55 @@ class ApiCollectionComponent extends BaseComponent {
         });
     }
 
-    private openRefPopup(onInsert: (token: string) => void): void {
+    /** Re-opens the editor when the caret sits inside an existing token in a plain text input. */
+    private editInputTokenAtCaret(input: HTMLInputElement): void {
+        const value = input.value;
+        const caret = input.selectionStart ?? -1;
+        if (caret < 0 || value.indexOf(REF_TOKEN_PREFIX) === -1) {
+            return;
+        }
+        const re = new RegExp(REF_PATTERN, 'g');
+        let m: RegExpExecArray | null;
+        while ((m = re.exec(value)) !== null) {
+            const start = m.index;
+            const end = m.index + m[0].length;
+            if (caret >= start && caret <= end) {
+                const def = this.decodeRef(m[1]);
+                if (!def) {
+                    return;
+                }
+                this.openRefPopup((token: string) => {
+                    input.value = value.slice(0, start) + token + value.slice(end);
+                    const pos = start + token.length;
+                    input.setSelectionRange(pos, pos);
+                    input.focus();
+                    this.markDirty();
+                }, def);
+                return;
+            }
+        }
+    }
+
+    /** Full "Folder / Sub / Name" path of a node, so same-named requests are distinguishable. */
+    private nodePath(node: ApiNode): string {
+        const parts: string[] = [];
+        let cur: ApiNode | undefined = node;
+        while (cur) {
+            parts.unshift(cur.name);
+            cur = this.findNode(cur.parentId);
+        }
+        return parts.join(' / ');
+    }
+
+    private initSelect2($el: any, config: any): any {
+        try {
+            return new Select2View({el: $el, select2Config: config});
+        } catch (e) {
+            return null; // leave the native control in place if Select2 can't initialise
+        }
+    }
+
+    private openRefPopup(onInsert: (token: string) => void, preset?: RefDef): void {
         const requests = this.nodes.filter(n => n.type === 'request' && n.id !== this.activeId);
 
         const $form = $('<div/>', {'class': 'aaxis-api__ref-form'});
@@ -1345,7 +1548,7 @@ class ApiCollectionComponent extends BaseComponent {
 
         const $reqSelect = $('<select/>', {'class': 'form-control', 'data-role': 'ref-request'});
         requests.forEach(n => $reqSelect.append($('<option/>', {
-            value: n.id, text: (n.method || 'GET') + ' · ' + n.name
+            value: n.id, text: (n.method || 'GET') + ' · ' + this.nodePath(n)
         })));
 
         const $attrSelect = $('<select/>', {'class': 'form-control', 'data-role': 'ref-attr'});
@@ -1353,7 +1556,7 @@ class ApiCollectionComponent extends BaseComponent {
         $attrSelect.append($('<option/>', {value: 'header', text: __('aaxis.tools.api_collection.ref_attr_header')}));
 
         const $headerName = $('<input/>', {
-            type: 'text', 'class': 'form-control', 'data-role': 'ref-header', placeholder: 'Authorization', hidden: true
+            type: 'text', 'class': 'form-control', 'data-role': 'ref-header', placeholder: 'Authorization', spellcheck: false
         });
         const $filter = $('<input/>', {
             type: 'text', 'class': 'form-control', 'data-role': 'ref-filter',
@@ -1373,10 +1576,12 @@ class ApiCollectionComponent extends BaseComponent {
             return $row;
         };
 
+        const $headerRow = row('ref_header_name', $headerName);
+        const $filterRow = row('ref_filter', $filter, 'ref_filter_hint');
         $form.append(row('ref_source_request', $reqSelect));
         $form.append(row('ref_source_attr', $attrSelect));
-        $form.append(row('ref_header_name', $headerName));
-        $form.append(row('ref_filter', $filter, 'ref_filter_hint'));
+        $form.append($headerRow);
+        $form.append($filterRow);
         $form.append(row('ref_autorun', $runSelect));
 
         const $previewBtn = $('<button/>', {
@@ -1387,7 +1592,22 @@ class ApiCollectionComponent extends BaseComponent {
         $form.append($previewBtn);
         $form.append($preview);
 
-        $attrSelect.on('change', () => $headerName.prop('hidden', String($attrSelect.val()) !== 'header'));
+        // Prefill when editing an existing reference.
+        if (preset) {
+            $reqSelect.val(String(preset.r));
+            $attrSelect.val(preset.src);
+            $headerName.val(preset.h || '');
+            $filter.val(preset.q || '');
+            $runSelect.val(preset.run);
+        }
+
+        const syncAttr = (): void => {
+            const isHeader = String($attrSelect.val()) === 'header';
+            $headerRow.prop('hidden', !isHeader);
+            $filterRow.prop('hidden', isHeader);
+        };
+        $attrSelect.on('change', syncAttr);
+        syncAttr();
 
         const readForm = (): RefDef | null => {
             const r = parseInt(String($reqSelect.val() || ''), 10);
@@ -1418,10 +1638,11 @@ class ApiCollectionComponent extends BaseComponent {
         const modal = new Modal({
             title: __('aaxis.tools.api_collection.ref_title'),
             content: '',
-            okText: __('aaxis.tools.api_collection.ref_insert'),
+            okText: preset ? __('aaxis.tools.api_collection.ref_update') : __('aaxis.tools.api_collection.ref_insert'),
             okCloses: false,
             cancelText: __('Close')
         });
+        const select2s: any[] = [];
         modal.on('ok', () => {
             const def = readForm();
             if (!def) {
@@ -1431,8 +1652,17 @@ class ApiCollectionComponent extends BaseComponent {
             onInsert(this.encodeRef(def));
             modal.close();
         });
+        modal.on('hidden', () => select2s.forEach(s => s && s.dispose()));
         modal.open();
         modal.$el.find('.modal-body').append($form);
+
+        // Enhance the native selects into searchable combos (request needs type-ahead; the short
+        // body/header and auto-run lists hide their search box). Dropdowns render inside the modal.
+        select2s.push(this.initSelect2($reqSelect, {width: '100%', dropdownParent: modal.$el}));
+        select2s.push(this.initSelect2($attrSelect,
+            {width: '100%', minimumResultsForSearch: Infinity, dropdownParent: modal.$el}));
+        select2s.push(this.initSelect2($runSelect,
+            {width: '100%', minimumResultsForSearch: Infinity, dropdownParent: modal.$el}));
     }
 
     // --- Run history ---------------------------------------------------------
@@ -1538,10 +1768,12 @@ class ApiCollectionComponent extends BaseComponent {
             }
             $status.append($('<span/>', {text: ' ' + text}));
         };
-        // While importing, block the popup: disable its footer buttons and close control so the
-        // request can't be re-submitted or dismissed until it resolves.
+        // While importing, block the popup so it can't be re-submitted or dismissed until it
+        // resolves. The footer Ok/Cancel are <a> tags (the X is a <button>), so a class toggling
+        // pointer-events is more reliable than the disabled property.
         const setBlocked = (blocked: boolean): void =>
-            modal.$el.find('.modal-footer button, .close').prop('disabled', blocked);
+            modal.$el.find('.modal-footer .ok, .modal-footer .cancel, .close')
+                .toggleClass('aaxis-api__btn-disabled', blocked);
 
         modal.on('ok', () => {
             if (importing) {
@@ -1565,7 +1797,7 @@ class ApiCollectionComponent extends BaseComponent {
             this.apiFetch(this.urls.create, 'POST', {
                 type: 'request', name, parentId,
                 method: parsed.method, url: parsed.url, headers: parsed.headers,
-                params: [], bodyType: parsed.body ? 'raw' : 'none', body: parsed.body
+                params: [], bodyType: this.guessBodyType(parsed.body), body: parsed.body
             }).then((res: any) => {
                 if (res && res.ok && res.data && res.data.success) {
                     return this.loadTree().then(() => modal.close());
@@ -1588,7 +1820,14 @@ class ApiCollectionComponent extends BaseComponent {
         // Join shell line-continuations ("\" at end of a line) so flags stay paired with values.
         const cleaned = raw.replace(/\\\r?\n/g, ' ');
         const tokens = cleaned.match(/'[^']*'|"[^"]*"|\S+/g) || [];
-        const unq = (t: string) => (/^['"].*['"]$/.test(t) ? t.slice(1, -1) : t);
+        // Strip matching surrounding quotes. Checking first/last char (not a regex with ".") so
+        // multi-line quoted bodies — common for pretty-printed JSON — are unquoted too.
+        const unq = (t: string) => {
+            const q = t.charAt(0);
+            return t.length >= 2 && (q === '\'' || q === '"') && t.charAt(t.length - 1) === q
+                ? t.slice(1, -1)
+                : t;
+        };
         let method = '';
         let url = '';
         const headers: KvPair[] = [];
@@ -1625,6 +1864,24 @@ class ApiCollectionComponent extends BaseComponent {
         return {method, url, headers, body};
     }
 
+    /** Picks an editor body type from an imported body's shape (JSON / XML / form / raw). */
+    private guessBodyType(body: string): string {
+        const b = body.trim();
+        if (b === '') {
+            return 'none';
+        }
+        if (b.charAt(0) === '{' || b.charAt(0) === '[') {
+            return 'json';
+        }
+        if (b.charAt(0) === '<') {
+            return 'xml';
+        }
+        if (/^[^=&\s]+=[^=&]*(&[^=&\s]+=[^=&]*)*$/.test(b)) {
+            return 'form';
+        }
+        return 'raw';
+    }
+
     // --- Misc ----------------------------------------------------------------
 
     private formatSize(bytes: number): string {
@@ -1640,6 +1897,9 @@ class ApiCollectionComponent extends BaseComponent {
     private setRunning(running: boolean): void {
         this.running = running;
         this.$el.find('[data-role="send"]').prop('disabled', running);
+        // Swap the send icon for a spinner so a pending response is visible.
+        this.$el.find('[data-role="send"] .fa')
+            .attr('class', 'fa ' + (running ? 'fa-spinner fa-spin' : 'fa-paper-plane'));
     }
 
     private onToggleRightbar(event: any): void {
@@ -1667,6 +1927,10 @@ class ApiCollectionComponent extends BaseComponent {
         this.closeMenu();
         this.$el.off('.aaxisApi');
         $(window).off('resize.aaxisApi');
+        if (this.decorateRaf !== null) {
+            window.cancelAnimationFrame(this.decorateRaf);
+            this.decorateRaf = null;
+        }
         if (this.bodyEditor) {
             this.bodyEditor.toTextArea();
             this.bodyEditor = null;
