@@ -48,6 +48,9 @@ aaxis:
                     label: 'Allow per-queue colour selection'
                 allow_message_preview:
                     label: 'Allow message preview'
+                refresh_interval:
+                    label: 'Auto-refresh interval (seconds)'
+                    tooltip: 'How often the queue list and selected-queue history refresh automatically (default 15). Lower values poll the RabbitMQ management API more often; raise it if you hit upstream rate limiting. Clamped to 5-3600 seconds.'
                 preview_max_queues:
                     label: 'Hide message preview above N selected queues'
                     tooltip: 'When more than this many queues are selected, the message preview is hidden so it does not crowd the recent-samples table (default 4).'
@@ -86,7 +89,7 @@ aaxis:
             filter_placeholder: 'Filter queues...'
             filter_clear: 'Clear filter'
             refresh: 'Refresh queues'
-            auto_refresh: 'Auto-refresh every 5s'
+            auto_refresh: 'Auto-refresh every %seconds%s'
             select_all: 'Select all'
             select_none: 'Clear'
             select_hint: 'Select a queue on the left to see its counters, history and messages.'
@@ -95,7 +98,7 @@ aaxis:
                 queues:
                     title: 'Queue list'
                     item1: 'The left sidebar lists every queue with badges for ready messages, unacknowledged messages and consumers.'
-                    item2: 'The list refreshes automatically every 5 seconds; toggle the checkbox or use the refresh button to control updates.'
+                    item2: 'The list refreshes automatically on a configurable interval (System Configuration → Aaxis Tools → Queue Monitor); toggle the checkbox or use the refresh button to control updates.'
                     item3: 'Type in the filter box to narrow the list by queue name.'
                 detail:
                     title: 'Queue detail'
@@ -143,3 +146,9 @@ aaxis:
                     item3: 'The maximize buttons expand the request or the response area; the body editor grows to fill it.'
                     item4: 'The response shows the status, time and size, with Headers/Body sub-tabs (JSON/XML are pretty-printed). Requests run server-side (proxied), so they are not subject to CORS.'
                     item5: 'The collapsible right sidebar logs each run with its method, status, request name, datetime and response size.'
+                references:
+                    title: 'Chaining requests (response references)'
+                    item1: 'You can pull a value from another request''s response into a param value, a header value, the URL or the body. Type ### where you want the value and a popup opens to build the reference.'
+                    item2: 'Pick the source request (only requests you can see are listed), choose the response body or a header, and optionally filter it — JSONPath for JSON (e.g. $.data.token) or XPath for XML (e.g. //token/text()). The popup''s Preview button shows the value it would resolve to.'
+                    item3: 'References read from responses cached during this browser session (each request you send is remembered). Choose what happens when nothing is cached yet: send that request automatically, leave the value empty, or always send it fresh.'
+                    item4: 'References are stored as a compact {{res:...}} token, so they are saved with the request and reused on every send. References resolve recursively (a referenced request may reference others), with a safeguard against loops.'

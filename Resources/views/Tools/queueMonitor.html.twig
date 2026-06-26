@@ -8,7 +8,7 @@
              data-page-component-module="aaxistools/js/app/components/queue-monitor-component"
              data-page-component-options="{{ {
                  queuesUrl: path('aaxis_tools_queue_monitor_queues'),
-                 queueUrlTemplate: path('aaxis_tools_queue_monitor_queue', {name: '__NAME__'}),
+                 queuesDetailUrl: path('aaxis_tools_queue_monitor_queues_detail'),
                  messagesUrlTemplate: path('aaxis_tools_queue_monitor_messages', {name: '__NAME__'})
              }|merge(options)|json_encode }}">
             <div class="container-fluid page-title">
@@ -50,7 +50,7 @@
                     </div>
                     <label class="aaxis-queue-mon__autorefresh">
                         <input type="checkbox" data-role="autorefresh" checked>
-                        {{ 'aaxis.tools.queue_monitor.auto_refresh'|trans }}
+                        {{ 'aaxis.tools.queue_monitor.auto_refresh'|trans({'%seconds%': options.refreshInterval}) }}
                     </label>
                     <div class="aaxis-queue-mon__select-actions" {% if not options.allowMultiselect %}hidden{% endif %}>
                         <button type="button" class="aaxis-queue-mon__link" data-role="select-all">

@@ -42,11 +42,7 @@ class QueueMonitorController extends AbstractController
     public function queueAction(string $name): JsonResponse
     {
         try {
-            $config = $this->container->get(ConfigManager::class);
-            $samples = max(2, min((int) $config->get('aaxis_tools.queue_monitor_history_samples'), 500));
-            $interval = max(5, min((int) $config->get('aaxis_tools.queue_monitor_history_interval'), 3600));
-            // RabbitMQ returns one sample per "incr" seconds over the "age" window.
-            $age = $samples * $interval;
+            [$age, $interval] = $this->historyWindow();
 
             return new JsonResponse([
                 'queue' => $this->container->get(RabbitMqManagementClient::class)->getQueue($name, $age, $interval),
@@ -54,6 +50,66 @@ class QueueMonitorController extends AbstractController
         } catch (\Throwable $e) {
             return $this->errorResponse('read the queue', $e);
         }
+    }
+
+    /**
+     * Batch detail endpoint: returns the counters + length history for every requested queue
+     * in a single response. The Queue Monitor uses this so that selecting many queues (and the
+     * auto-refresh) issues one request instead of one per queue, which previously generated
+     * enough calls to trip upstream IP rate-limiting.
+     */
+    #[Route(
+        path: '/queue-monitor/queues-detail',
+        name: 'aaxis_tools_queue_monitor_queues_detail',
+        methods: ['GET']
+    )]
+    public function queuesDetailAction(Request $request): JsonResponse
+    {
+        $names = array_values(array_filter(
+            $request->query->all('names'),
+            static fn ($name): bool => \is_string($name) && $name !== ''
+        ));
+
+        try {
+            [$age, $interval] = $this->historyWindow();
+            $client = $this->container->get(RabbitMqManagementClient::class);
+
+            $queues = [];
+            $lastError = null;
+            foreach ($names as $name) {
+                try {
+                    $queues[] = $client->getQueue($name, $age, $interval);
+                } catch (\Throwable $e) {
+                    // Skip a queue that can't be read (e.g. just deleted) but keep the rest.
+                    $lastError = $e;
+                }
+            }
+
+            // Surface an error only when queues were requested but none could be read at all
+            // (the management API is likely down); an empty request just yields an empty list.
+            if ($queues === [] && $lastError !== null) {
+                return $this->errorResponse('read the queues', $lastError);
+            }
+
+            return new JsonResponse(['queues' => $queues]);
+        } catch (\Throwable $e) {
+            return $this->errorResponse('read the queues', $e);
+        }
+    }
+
+    /**
+     * Resolves the configured history window into the [age, interval] (seconds) pair the
+     * management client expects. RabbitMQ returns one sample per "interval" seconds over "age".
+     *
+     * @return array{0: int, 1: int}
+     */
+    private function historyWindow(): array
+    {
+        $config = $this->container->get(ConfigManager::class);
+        $samples = max(2, min((int) $config->get('aaxis_tools.queue_monitor_history_samples'), 500));
+        $interval = max(5, min((int) $config->get('aaxis_tools.queue_monitor_history_interval'), 3600));
+
+        return [$samples * $interval, $interval];
     }
 
     #[Route(

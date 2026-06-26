@@ -564,3 +564,69 @@ $aaxis-api-border: #d9d9d9;
         &:hover { background: rgba(0, 0, 0, .06); }
     }
 }
+
+// Response-reference popup (rendered inside an Oro modal, i.e. outside .aaxis-api).
+.aaxis-api__ref-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+
+    .form-control,
+    select {
+        width: 100%;
+        margin: 0;
+        box-sizing: border-box;
+    }
+}
+
+.aaxis-api__ref-row {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.aaxis-api__ref-label {
+    margin: 0;
+    font-weight: font-weight('bold');
+}
+
+.aaxis-api__ref-hint {
+    color: #8a98a6;
+    font-size: 12px;
+}
+
+.aaxis-api__ref-note {
+    margin: 0;
+    color: #b8860b;
+}
+
+.aaxis-api__ref-preview-btn {
+    align-self: flex-start;
+}
+
+.aaxis-api__ref-preview {
+    margin: 0;
+    min-height: 38px;
+    max-height: 200px;
+    overflow: auto;
+    padding: 8px 10px;
+    background: #f3f6f9;
+    border: 1px solid $aaxis-api-border;
+    border-radius: 4px;
+    font-family: SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+    font-size: 12px;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.aaxis-api__curl-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: #5c6b7a;
+    font-size: 13px;
+
+    &.is-error {
+        color: #c0392b;
+    }
+}

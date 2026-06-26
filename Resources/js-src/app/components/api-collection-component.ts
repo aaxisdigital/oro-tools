@@ -65,10 +65,39 @@ interface LastResponse {
     size: number;
 }
 
+/** A reference to another request's response, embedded in a param/header/body/URL string. */
+interface RefDef {
+    r: number;                              // source request id
+    src: 'body' | 'header';                 // which part of the response
+    h?: string;                             // header name (when src === 'header')
+    q?: string;                             // filter: JSONPath ($...) or XPath (/...)
+    run: 'none' | 'ifEmpty' | 'always';     // auto-run policy when no stored response
+}
+
+/** A response cached in sessionStorage for the lifetime of the browser tab/session. */
+interface StoredResponse {
+    status: number;
+    statusText: string;
+    contentType: string;
+    body: string;
+    headers: KvPair[];
+    at: string;
+}
+
 const METHOD_CLASS: Record<string, string> = {
     GET: 'is-get', POST: 'is-post', PUT: 'is-put', PATCH: 'is-patch',
     DELETE: 'is-delete', OPTIONS: 'is-options', HEAD: 'is-head'
 };
+
+// Typing this sequence in a param value, header value, URL or the body editor opens the
+// response-reference popup, which replaces it with an encoded {{res:...}} token.
+const REF_TRIGGER = '###';
+// Matches an encoded reference token. The payload is base64 (A-Z a-z 0-9 + / =), which never
+// contains the closing braces, so the delimiters are unambiguous.
+const REF_PATTERN = '\\{\\{res:([A-Za-z0-9+/=]+)\\}\\}';
+const REF_TOKEN_PREFIX = '{{res:';
+// Guards against reference cycles / runaway chains when auto-running referenced requests.
+const REF_MAX_DEPTH = 5;
 
 class ApiCollectionComponent extends BaseComponent {
     private $el!: any;
@@ -145,6 +174,13 @@ class ApiCollectionComponent extends BaseComponent {
             () => this.markDirty());
         this.$el.on('change.aaxisApi', '[data-role="method"]', this.onMethodChange.bind(this));
         this.$el.on('change.aaxisApi', '[data-role="body-type"]', () => this.onBodyTypeChange());
+
+        // Response-reference shortcut: typing "###" in the URL, a param value or a header value
+        // opens the reference popup and replaces the trigger with an encoded token.
+        this.$el.on('input.aaxisApi',
+            '[data-role="url"], [data-role="params-rows"] .aaxis-api__kv-value, '
+            + '[data-role="headers-rows"] .aaxis-api__kv-value',
+            (e: any) => this.maybeTriggerRefInput(e.currentTarget));
 
         $(window).on('resize.aaxisApi', () => {
             if (this.activeTab === 'body') {
@@ -548,6 +584,23 @@ class ApiCollectionComponent extends BaseComponent {
         });
         this.bodyEditor.setSize('100%', '160px');
         this.bodyEditor.on('change', () => this.markDirty());
+        this.bodyEditor.on('keyup', (cm: any, e: any) => {
+            if (e.key !== '#') {
+                return;
+            }
+            const cur = cm.getCursor();
+            const before = cm.getRange({line: cur.line, ch: 0}, cur);
+            if (!before.endsWith(REF_TRIGGER)) {
+                return;
+            }
+            const from = {line: cur.line, ch: cur.ch - REF_TRIGGER.length};
+            cm.replaceRange('', from, cur);
+            this.openRefPopup((token: string) => {
+                cm.replaceRange(token, cm.getCursor());
+                cm.focus();
+                this.markDirty();
+            });
+        });
     }
 
     private cmModeFor(type: string): any {
@@ -775,7 +828,7 @@ class ApiCollectionComponent extends BaseComponent {
 
     // --- Send (server-side proxy, avoids browser CORS) -----------------------
 
-    private onSend(): void {
+    private async onSend(): Promise<void> {
         if (this.running) {
             return;
         }
@@ -792,16 +845,22 @@ class ApiCollectionComponent extends BaseComponent {
             $('<div/>', {'class': 'aaxis-api__result-empty', text: __('aaxis.tools.api_collection.sending')})
         );
 
+        // Resolve any {{res:...}} references (may auto-run other requests) before sending.
+        const {data: resolved, warnings} = await this.resolveRequestData(req, this.activeId !== null ? [this.activeId] : []);
+        if (warnings.length) {
+            messenger.notificationFlashMessage('warning', warnings.join(' '));
+        }
+
         const node = this.findNode(this.activeId);
         this.apiFetch(this.urls.execute, 'POST', {
             requestId: this.activeId,
             name: node ? node.name : null,
-            method: req.method,
-            url: req.url,
-            params: req.params,
-            headers: req.headers,
-            bodyType: req.bodyType,
-            body: req.body
+            method: resolved.method,
+            url: resolved.url,
+            params: resolved.params,
+            headers: resolved.headers,
+            bodyType: resolved.bodyType,
+            body: resolved.body
         }).then((res: any) => {
             const data = res.data || {};
             if (data.runs) {
@@ -819,6 +878,9 @@ class ApiCollectionComponent extends BaseComponent {
                     timeMs: resp.timeMs || 0,
                     size: resp.size || 0
                 };
+                if (this.activeId !== null) {
+                    this.storeResponseFor(this.activeId, this.toStored(resp));
+                }
                 this.resultTab = 'body';
                 this.renderResult();
             } else {
@@ -921,6 +983,458 @@ class ApiCollectionComponent extends BaseComponent {
         return null;
     }
 
+    // --- Response references -------------------------------------------------
+
+    private storeKey(id: number): string {
+        return 'aaxis.api.resp.' + id;
+    }
+
+    /** Caches a response for the current browser session so other requests can reference it. */
+    private storeResponseFor(id: number, resp: StoredResponse): void {
+        try {
+            window.sessionStorage.setItem(this.storeKey(id), JSON.stringify(resp));
+        } catch (e) { /* storage full/unavailable — references just fall back to auto-run */ }
+    }
+
+    private readStoredResponse(id: number): StoredResponse | null {
+        try {
+            const raw = window.sessionStorage.getItem(this.storeKey(id));
+            return raw ? JSON.parse(raw) as StoredResponse : null;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    private toStored(resp: any): StoredResponse {
+        return {
+            status: resp.status || 0,
+            statusText: resp.statusText || '',
+            contentType: resp.contentType || '',
+            body: resp.body || '',
+            headers: resp.headers || [],
+            at: new Date().toISOString()
+        };
+    }
+
+    /** Encodes a reference definition into a self-contained, copy/paste-safe {{res:...}} token. */
+    private encodeRef(def: RefDef): string {
+        const payload: RefDef = {r: def.r, src: def.src, run: def.run};
+        if (def.src === 'header' && def.h) {
+            payload.h = def.h;
+        }
+        if (def.q) {
+            payload.q = def.q;
+        }
+        const json = JSON.stringify(payload);
+        return REF_TOKEN_PREFIX + window.btoa(unescape(encodeURIComponent(json))) + '}}';
+    }
+
+    private decodeRef(b64: string): RefDef | null {
+        try {
+            const json = decodeURIComponent(escape(window.atob(b64)));
+            const d = JSON.parse(json);
+            if (!d || typeof d.r !== 'number') {
+                return null;
+            }
+            const run = ['none', 'ifEmpty', 'always'].indexOf(d.run) !== -1 ? d.run : 'ifEmpty';
+            return {r: d.r, src: d.src === 'header' ? 'header' : 'body', h: d.h, q: d.q, run};
+        } catch (e) {
+            return null;
+        }
+    }
+
+    private collectRefs(text: string): Array<{raw: string; def: RefDef | null}> {
+        const out: Array<{raw: string; def: RefDef | null}> = [];
+        const re = new RegExp(REF_PATTERN, 'g');
+        let m: RegExpExecArray | null;
+        while ((m = re.exec(text)) !== null) {
+            out.push({raw: m[0], def: this.decodeRef(m[1])});
+        }
+        return out;
+    }
+
+    /** Resolves every reference in a request's URL, param values, header values and body. */
+    private async resolveRequestData(req: RequestData, visited: number[]):
+        Promise<{data: RequestData; warnings: string[]}> {
+        const warnings: string[] = [];
+        const resolve = async (s: string): Promise<string> => {
+            const r = await this.resolveString(s, visited);
+            r.warnings.forEach(w => { if (warnings.indexOf(w) === -1) { warnings.push(w); } });
+            return r.value;
+        };
+
+        const url = await resolve(req.url);
+        const params: KvPair[] = [];
+        for (const p of req.params) {
+            params.push({key: p.key, value: await resolve(p.value)});
+        }
+        const headers: KvPair[] = [];
+        for (const h of req.headers) {
+            headers.push({key: h.key, value: await resolve(h.value)});
+        }
+        const body = await resolve(req.body);
+
+        return {data: {method: req.method, url, params, headers, bodyType: req.bodyType, body}, warnings};
+    }
+
+    private async resolveString(text: string, visited: number[]): Promise<{value: string; warnings: string[]}> {
+        if (!text || text.indexOf(REF_TOKEN_PREFIX) === -1) {
+            return {value: text, warnings: []};
+        }
+        const warnings: string[] = [];
+        const values: Record<string, string> = {};
+        for (const ref of this.collectRefs(text)) {
+            if (values[ref.raw] !== undefined) {
+                continue;
+            }
+            if (!ref.def) {
+                warnings.push(__('aaxis.tools.api_collection.ref_warn_invalid'));
+                values[ref.raw] = '';
+                continue;
+            }
+            const resp = await this.ensureResponse(ref.def, visited, warnings);
+            values[ref.raw] = resp ? this.extractValue(resp, ref.def, warnings) : '';
+        }
+        const value = text.replace(new RegExp(REF_PATTERN, 'g'), m => (values[m] !== undefined ? values[m] : m));
+        return {value, warnings};
+    }
+
+    /**
+     * Returns the response for a referenced request, using the session cache and the reference's
+     * auto-run policy. Auto-running resolves the target's own references first (depth-guarded).
+     */
+    private async ensureResponse(def: RefDef, visited: number[], warnings: string[]): Promise<StoredResponse | null> {
+        const node = this.findNode(def.r);
+        if (!node || node.type !== 'request') {
+            warnings.push(__('aaxis.tools.api_collection.ref_warn_missing'));
+            return null;
+        }
+        if (def.run !== 'always') {
+            const stored = this.readStoredResponse(def.r);
+            if (stored) {
+                return stored;
+            }
+            if (def.run === 'none') {
+                warnings.push(__('aaxis.tools.api_collection.ref_warn_nostored', {name: node.name}));
+                return null;
+            }
+        }
+        if (visited.indexOf(def.r) !== -1 || visited.length >= REF_MAX_DEPTH) {
+            warnings.push(__('aaxis.tools.api_collection.ref_warn_cycle', {name: node.name}));
+            return this.readStoredResponse(def.r);
+        }
+
+        const childReq: RequestData = {
+            method: node.method || 'GET', url: node.url || '', params: node.params || [],
+            headers: node.headers || [], bodyType: node.bodyType || 'none', body: node.body || ''
+        };
+        const child = await this.resolveRequestData(childReq, visited.concat(def.r));
+        child.warnings.forEach(w => { if (warnings.indexOf(w) === -1) { warnings.push(w); } });
+
+        const resp = await this.execRequest(def.r, node.name, child.data);
+        if (resp && resp.success) {
+            const stored = this.toStored(resp);
+            this.storeResponseFor(def.r, stored);
+            return stored;
+        }
+        warnings.push(__('aaxis.tools.api_collection.ref_warn_runfail', {name: node.name}));
+        return null;
+    }
+
+    /** Runs a request server-side (proxy) and returns the raw response payload, or null on failure. */
+    private execRequest(requestId: number | null, name: string, data: RequestData): Promise<any> {
+        return this.apiFetch(this.urls.execute, 'POST', {
+            requestId, name, method: data.method, url: data.url,
+            params: data.params, headers: data.headers, bodyType: data.bodyType, body: data.body
+        }).then((res: any) => (res.data && res.data.response) ? res.data.response : null)
+            .catch(() => null);
+    }
+
+    /** Extracts the referenced value from a stored response, applying the JSONPath/XPath filter. */
+    private extractValue(resp: StoredResponse, def: RefDef, warnings: string[]): string {
+        if (def.src === 'header') {
+            const name = (def.h || '').toLowerCase();
+            const found = (resp.headers || []).filter(h => h.key.toLowerCase() === name).map(h => h.value);
+            if (!found.length) {
+                warnings.push(__('aaxis.tools.api_collection.ref_warn_noheader', {name: def.h || ''}));
+                return '';
+            }
+            return found.join(', ');
+        }
+
+        const q = (def.q || '').trim();
+        if (q === '') {
+            return resp.body;
+        }
+        if (q.charAt(0) === '/') {
+            const res = this.xpathQuery(resp.body, q);
+            if (res === null) {
+                warnings.push(__('aaxis.tools.api_collection.ref_warn_xml'));
+                return '';
+            }
+            return res.join(', ');
+        }
+        // Anything else is treated as JSONPath (a leading "$" is optional).
+        try {
+            const obj = JSON.parse(resp.body);
+            return this.stringifyMatches(this.jsonPath(obj, q.charAt(0) === '$' ? q : '$.' + q));
+        } catch (e) {
+            warnings.push(__('aaxis.tools.api_collection.ref_warn_json'));
+            return '';
+        }
+    }
+
+    private stringifyMatches(matches: any[]): string {
+        return matches
+            .filter(v => v !== undefined && v !== null)
+            .map(v => (typeof v === 'string' ? v : JSON.stringify(v)))
+            .join(', ');
+    }
+
+    // --- Minimal JSONPath (subset: $ . [n] [*] ['key'] .. ) ------------------
+
+    private jsonPath(obj: any, path: string): any[] {
+        let p = path.trim();
+        if (p.charAt(0) === '$') {
+            p = p.slice(1);
+        }
+        let current: any[] = [obj];
+        for (const tok of this.tokenizeJsonPath(p)) {
+            const next: any[] = [];
+            if (tok.type === 'recurse') {
+                current.forEach(n => this.collectDescendants(n, next));
+            } else if (tok.type === 'wild') {
+                current.forEach(n => {
+                    if (Array.isArray(n)) {
+                        next.push(...n);
+                    } else if (n && typeof n === 'object') {
+                        next.push(...Object.values(n));
+                    }
+                });
+            } else if (tok.type === 'index') {
+                current.forEach(n => {
+                    if (Array.isArray(n)) {
+                        const i = tok.i! < 0 ? n.length + tok.i! : tok.i!;
+                        if (i >= 0 && i < n.length) {
+                            next.push(n[i]);
+                        }
+                    }
+                });
+            } else {
+                const key = tok.key as string;
+                current.forEach(n => {
+                    if (n && typeof n === 'object' && !Array.isArray(n) && Object.prototype.hasOwnProperty.call(n, key)) {
+                        next.push(n[key]);
+                    }
+                });
+            }
+            current = next;
+        }
+        return current;
+    }
+
+    private tokenizeJsonPath(p: string): Array<{type: string; key?: string; i?: number}> {
+        const tokens: Array<{type: string; key?: string; i?: number}> = [];
+        const namePart = /[\w$-]/;
+        let i = 0;
+        while (i < p.length) {
+            if (p.charAt(i) === '.') {
+                if (p.charAt(i + 1) === '.') {
+                    tokens.push({type: 'recurse'});
+                    i += 2;
+                    continue;
+                }
+                i += 1;
+                continue;
+            }
+            if (p.charAt(i) === '[') {
+                const end = p.indexOf(']', i);
+                if (end === -1) {
+                    break;
+                }
+                let inner = p.slice(i + 1, end).trim();
+                if (inner === '*') {
+                    tokens.push({type: 'wild'});
+                } else if (/^-?\d+$/.test(inner)) {
+                    tokens.push({type: 'index', i: parseInt(inner, 10)});
+                } else {
+                    inner = inner.replace(/^['"]|['"]$/g, '');
+                    tokens.push({type: 'child', key: inner});
+                }
+                i = end + 1;
+                continue;
+            }
+            let j = i;
+            while (j < p.length && namePart.test(p.charAt(j))) {
+                j += 1;
+            }
+            if (j > i) {
+                const key = p.slice(i, j);
+                tokens.push(key === '*' ? {type: 'wild'} : {type: 'child', key});
+                i = j;
+            } else {
+                i += 1;
+            }
+        }
+        return tokens;
+    }
+
+    private collectDescendants(node: any, out: any[]): void {
+        out.push(node);
+        if (Array.isArray(node)) {
+            node.forEach(child => this.collectDescendants(child, out));
+        } else if (node && typeof node === 'object') {
+            Object.values(node).forEach(child => this.collectDescendants(child, out));
+        }
+    }
+
+    /** Evaluates an XPath expression against an XML body using the browser's native engine. */
+    private xpathQuery(xml: string, expr: string): string[] | null {
+        try {
+            const doc = new DOMParser().parseFromString(xml, 'application/xml');
+            if (doc.getElementsByTagName('parsererror').length) {
+                return null;
+            }
+            const xr = doc.evaluate(expr, doc, null, XPathResult.ANY_TYPE, null);
+            switch (xr.resultType) {
+                case XPathResult.NUMBER_TYPE: return [String(xr.numberValue)];
+                case XPathResult.STRING_TYPE: return [xr.stringValue];
+                case XPathResult.BOOLEAN_TYPE: return [String(xr.booleanValue)];
+                default: {
+                    const out: string[] = [];
+                    let n = xr.iterateNext();
+                    while (n) {
+                        out.push(n.textContent ?? String((n as any).nodeValue ?? ''));
+                        n = xr.iterateNext();
+                    }
+                    return out;
+                }
+            }
+        } catch (e) {
+            return null;
+        }
+    }
+
+    // --- Reference popup -----------------------------------------------------
+
+    private maybeTriggerRefInput(input: HTMLInputElement): void {
+        const value = input.value;
+        const caret = input.selectionStart ?? value.length;
+        if (value.slice(caret - REF_TRIGGER.length, caret) !== REF_TRIGGER) {
+            return;
+        }
+        const before = value.slice(0, caret - REF_TRIGGER.length);
+        const after = value.slice(caret);
+        input.value = before + after;
+        this.openRefPopup((token: string) => {
+            input.value = before + token + after;
+            const pos = (before + token).length;
+            input.setSelectionRange(pos, pos);
+            input.focus();
+            this.markDirty();
+        });
+    }
+
+    private openRefPopup(onInsert: (token: string) => void): void {
+        const requests = this.nodes.filter(n => n.type === 'request' && n.id !== this.activeId);
+
+        const $form = $('<div/>', {'class': 'aaxis-api__ref-form'});
+        if (!requests.length) {
+            $form.append($('<p/>', {'class': 'aaxis-api__ref-note', text: __('aaxis.tools.api_collection.ref_no_request')}));
+        }
+
+        const $reqSelect = $('<select/>', {'class': 'form-control', 'data-role': 'ref-request'});
+        requests.forEach(n => $reqSelect.append($('<option/>', {
+            value: n.id, text: (n.method || 'GET') + ' · ' + n.name
+        })));
+
+        const $attrSelect = $('<select/>', {'class': 'form-control', 'data-role': 'ref-attr'});
+        $attrSelect.append($('<option/>', {value: 'body', text: __('aaxis.tools.api_collection.ref_attr_body')}));
+        $attrSelect.append($('<option/>', {value: 'header', text: __('aaxis.tools.api_collection.ref_attr_header')}));
+
+        const $headerName = $('<input/>', {
+            type: 'text', 'class': 'form-control', 'data-role': 'ref-header', placeholder: 'Authorization', hidden: true
+        });
+        const $filter = $('<input/>', {
+            type: 'text', 'class': 'form-control', 'data-role': 'ref-filter',
+            placeholder: '$.data.token', spellcheck: false
+        });
+        const $runSelect = $('<select/>', {'class': 'form-control', 'data-role': 'ref-run'});
+        [['ifEmpty', 'ref_run_ifempty'], ['none', 'ref_run_none'], ['always', 'ref_run_always']]
+            .forEach(([val, key]) => $runSelect.append($('<option/>', {value: val, text: __('aaxis.tools.api_collection.' + key)})));
+
+        const row = (labelKey: string, $field: any, hintKey?: string): any => {
+            const $row = $('<div/>', {'class': 'aaxis-api__ref-row'});
+            $row.append($('<label/>', {'class': 'aaxis-api__ref-label', text: __('aaxis.tools.api_collection.' + labelKey)}));
+            $row.append($field);
+            if (hintKey) {
+                $row.append($('<div/>', {'class': 'aaxis-api__ref-hint', text: __('aaxis.tools.api_collection.' + hintKey)}));
+            }
+            return $row;
+        };
+
+        $form.append(row('ref_source_request', $reqSelect));
+        $form.append(row('ref_source_attr', $attrSelect));
+        $form.append(row('ref_header_name', $headerName));
+        $form.append(row('ref_filter', $filter, 'ref_filter_hint'));
+        $form.append(row('ref_autorun', $runSelect));
+
+        const $previewBtn = $('<button/>', {
+            type: 'button', 'class': 'btn btn-sm aaxis-api__ref-preview-btn',
+            'data-role': 'ref-preview-btn', text: __('aaxis.tools.api_collection.ref_preview')
+        });
+        const $preview = $('<pre/>', {'class': 'aaxis-api__ref-preview', 'data-role': 'ref-preview'});
+        $form.append($previewBtn);
+        $form.append($preview);
+
+        $attrSelect.on('change', () => $headerName.prop('hidden', String($attrSelect.val()) !== 'header'));
+
+        const readForm = (): RefDef | null => {
+            const r = parseInt(String($reqSelect.val() || ''), 10);
+            if (!Number.isFinite(r)) {
+                return null;
+            }
+            const src = String($attrSelect.val()) === 'header' ? 'header' : 'body';
+            return {
+                r, src,
+                h: src === 'header' ? String($headerName.val() || '').trim() : undefined,
+                q: src === 'body' ? String($filter.val() || '').trim() : undefined,
+                run: String($runSelect.val() || 'ifEmpty') as RefDef['run']
+            };
+        };
+
+        $previewBtn.on('click', async () => {
+            const def = readForm();
+            if (!def) {
+                return;
+            }
+            $preview.text(__('aaxis.tools.api_collection.sending'));
+            const warnings: string[] = [];
+            const resp = await this.ensureResponse(def, [], warnings);
+            const value = resp ? this.extractValue(resp, def, warnings) : '';
+            $preview.text(value !== '' ? value : (warnings.join(' ') || __('aaxis.tools.api_collection.ref_preview_empty')));
+        });
+
+        const modal = new Modal({
+            title: __('aaxis.tools.api_collection.ref_title'),
+            content: '',
+            okText: __('aaxis.tools.api_collection.ref_insert'),
+            okCloses: false,
+            cancelText: __('Close')
+        });
+        modal.on('ok', () => {
+            const def = readForm();
+            if (!def) {
+                messenger.notificationFlashMessage('warning', __('aaxis.tools.api_collection.ref_no_request'));
+                return;
+            }
+            onInsert(this.encodeRef(def));
+            modal.close();
+        });
+        modal.open();
+        modal.$el.find('.modal-body').append($form);
+    }
+
     // --- Run history ---------------------------------------------------------
 
     private renderRuns(): void {
@@ -970,7 +1484,7 @@ class ApiCollectionComponent extends BaseComponent {
         const $content = $('<div/>').append($('<textarea/>', {'class': 'form-control', rows: 6, readonly: 'readonly', text: curl}));
         const modal = new Modal({
             title: __('aaxis.tools.api_collection.menu_export_curl'),
-            content: $content,
+            content: '',
             okText: __('aaxis.tools.api_collection.copy'),
             cancelText: __('Close')
         });
@@ -982,6 +1496,7 @@ class ApiCollectionComponent extends BaseComponent {
             modal.close();
         });
         modal.open();
+        modal.$el.find('.modal-body').append($content);
     }
 
     private shellQuote(value: string): string {
@@ -989,39 +1504,90 @@ class ApiCollectionComponent extends BaseComponent {
     }
 
     private importCurl(parentId: number): void {
-        const $content = $('<div/>').append($('<textarea/>', {
-            'class': 'form-control', rows: 6, 'data-role': 'curl-input', placeholder: 'curl https://...'
-        }));
+        const $name = $('<input/>', {
+            type: 'text', 'class': 'form-control', 'data-role': 'curl-name',
+            placeholder: __('aaxis.tools.api_collection.curl_name'), autocomplete: 'off', spellcheck: false
+        });
+        const $curl = $('<textarea/>', {
+            'class': 'form-control', rows: 6, 'data-role': 'curl-input', placeholder: 'curl https://...', spellcheck: false
+        });
+        const $status = $('<div/>', {'class': 'aaxis-api__curl-status', 'data-role': 'curl-status', hidden: true});
+
+        const labelled = (labelKey: string, $field: any): any => $('<div/>', {'class': 'aaxis-api__ref-row'})
+            .append(
+                $('<label/>', {'class': 'aaxis-api__ref-label', text: __('aaxis.tools.api_collection.' + labelKey)}),
+                $field
+            );
+        const $content = $('<div/>', {'class': 'aaxis-api__ref-form'})
+            .append(labelled('curl_name', $name), labelled('curl_command', $curl), $status);
+
+        let importing = false;
         const modal = new Modal({
             title: __('aaxis.tools.api_collection.menu_import_curl'),
-            content: $content,
+            content: '',
             okText: __('aaxis.tools.api_collection.import'),
             okCloses: false
         });
+
+        const setStatus = (kind: 'busy' | 'error', text: string): void => {
+            $status.prop('hidden', false)
+                .attr('class', 'aaxis-api__curl-status' + (kind === 'error' ? ' is-error' : ''))
+                .empty();
+            if (kind === 'busy') {
+                $status.append($('<span/>', {'class': 'fa fa-spinner fa-spin', 'aria-hidden': 'true'}));
+            }
+            $status.append($('<span/>', {text: ' ' + text}));
+        };
+        // While importing, block the popup: disable its footer buttons and close control so the
+        // request can't be re-submitted or dismissed until it resolves.
+        const setBlocked = (blocked: boolean): void =>
+            modal.$el.find('.modal-footer button, .close').prop('disabled', blocked);
+
         modal.on('ok', () => {
-            const parsed = this.parseCurl(String(modal.$el.find('[data-role="curl-input"]').val() || '').trim());
-            if (!parsed) {
-                messenger.notificationFlashMessage('warning', __('aaxis.tools.api_collection.curl_invalid'));
+            if (importing) {
                 return;
             }
+            const name = String($name.val() || '').trim();
+            if (name === '') {
+                setStatus('error', __('aaxis.tools.api_collection.curl_name_required'));
+                $name.trigger('focus');
+                return;
+            }
+            const parsed = this.parseCurl(String($curl.val() || '').trim());
+            if (!parsed) {
+                setStatus('error', __('aaxis.tools.api_collection.curl_invalid'));
+                return;
+            }
+            importing = true;
+            setBlocked(true);
+            setStatus('busy', __('aaxis.tools.api_collection.importing'));
             this.expanded[parentId] = true;
-            this.setBusy(true);
             this.apiFetch(this.urls.create, 'POST', {
-                type: 'request', name: parsed.url, parentId,
+                type: 'request', name, parentId,
                 method: parsed.method, url: parsed.url, headers: parsed.headers,
                 params: [], bodyType: parsed.body ? 'raw' : 'none', body: parsed.body
-            }).then(() => this.loadTree())
-                .then(() => modal.close())
-                .finally(() => this.setBusy(false));
+            }).then((res: any) => {
+                if (res && res.ok && res.data && res.data.success) {
+                    return this.loadTree().then(() => modal.close());
+                }
+                throw new Error('import failed');
+            }).catch(() => {
+                importing = false;
+                setBlocked(false);
+                setStatus('error', __('aaxis.tools.api_collection.error'));
+            });
         });
         modal.open();
+        modal.$el.find('.modal-body').append($content);
     }
 
     private parseCurl(raw: string): {method: string; url: string; headers: KvPair[]; body: string} | null {
         if (raw.indexOf('curl') === -1) {
             return null;
         }
-        const tokens = raw.match(/'[^']*'|"[^"]*"|\S+/g) || [];
+        // Join shell line-continuations ("\" at end of a line) so flags stay paired with values.
+        const cleaned = raw.replace(/\\\r?\n/g, ' ');
+        const tokens = cleaned.match(/'[^']*'|"[^"]*"|\S+/g) || [];
         const unq = (t: string) => (/^['"].*['"]$/.test(t) ? t.slice(1, -1) : t);
         let method = '';
         let url = '';
@@ -1029,20 +1595,24 @@ class ApiCollectionComponent extends BaseComponent {
         let body = '';
         for (let i = 0; i < tokens.length; i++) {
             const t = tokens[i];
-            if (t === 'curl') {
+            // Skip the command name and any stray line-continuation backslashes (e.g. "curl \").
+            if (t === 'curl' || t === '\\') {
                 continue;
             }
             if (t === '-X' || t === '--request') {
                 method = unq(tokens[++i] || 'GET').toUpperCase();
+            } else if (t === '--url') {
+                url = unq(tokens[++i] || '');
             } else if (t === '-H' || t === '--header') {
                 const h = unq(tokens[++i] || '');
                 const idx = h.indexOf(':');
                 if (idx !== -1) {
                     headers.push({key: h.slice(0, idx).trim(), value: h.slice(idx + 1).trim()});
                 }
-            } else if (t === '-d' || t === '--data' || t === '--data-raw' || t === '--data-binary') {
+            } else if (t === '-d' || t === '--data' || t === '--data-raw'
+                || t === '--data-binary' || t === '--data-urlencode') {
                 body = unq(tokens[++i] || '');
-            } else if (url === '' && (t.charAt(0) !== '-' || t.charAt(0) === "'" || t.charAt(0) === '"')) {
+            } else if (url === '' && t.charAt(0) !== '-') {
                 url = unq(t);
             }
         }

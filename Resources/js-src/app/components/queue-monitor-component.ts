@@ -7,11 +7,12 @@ import BaseComponent from 'oroui/js/app/components/base/component';
 interface QueueMonitorOptions {
     _sourceElement: any;
     queuesUrl: string;
-    queueUrlTemplate: string;
+    queuesDetailUrl: string;
     messagesUrlTemplate: string;
     allowMultiselect?: boolean;
     allowColorSelection?: boolean;
     allowMessagePreview?: boolean;
+    refreshInterval?: number;
     previewMaxQueues?: number;
     historySamples?: number;
     maxMessageFetch?: number;
@@ -50,7 +51,10 @@ interface QueueMessage {
     properties: Record<string, unknown>;
 }
 
-const REFRESH_INTERVAL_MS = 5000;
+// Fallback auto-refresh interval (ms) when the server doesn't supply one; the effective value
+// comes from configuration (queue_monitor_refresh_interval, default 15s) via the refreshInterval
+// option, so the timer and the displayed "Auto-refresh every Ns" label share one source of truth.
+const DEFAULT_REFRESH_INTERVAL_MS = 15000;
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const DEFAULT_PREVIEW_MESSAGES = 10;
 // Absolute safety ceiling for a single preview fetch; the effective limit comes from
@@ -89,7 +93,7 @@ const PALETTE = [
 class QueueMonitorComponent extends BaseComponent {
     private $el!: any;
     private queuesUrl!: string;
-    private queueUrlTemplate!: string;
+    private queuesDetailUrl!: string;
     private messagesUrlTemplate!: string;
 
     private queues!: QueueSummary[];
@@ -105,6 +109,7 @@ class QueueMonitorComponent extends BaseComponent {
     private allowMultiselect!: boolean;
     private allowColorSelection!: boolean;
     private allowMessagePreview!: boolean;
+    private refreshIntervalMs!: number;
     private previewMaxQueues!: number;
     private historySamples!: number;
     private maxMessageFetch!: number;
@@ -112,12 +117,15 @@ class QueueMonitorComponent extends BaseComponent {
     initialize(options: QueueMonitorOptions): void {
         this.$el = options._sourceElement;
         this.queuesUrl = options.queuesUrl;
-        this.queueUrlTemplate = options.queueUrlTemplate;
+        this.queuesDetailUrl = options.queuesDetailUrl;
         this.messagesUrlTemplate = options.messagesUrlTemplate;
 
         this.allowMultiselect = options.allowMultiselect !== false;
         this.allowColorSelection = options.allowColorSelection !== false;
         this.allowMessagePreview = options.allowMessagePreview !== false;
+        this.refreshIntervalMs = options.refreshInterval && options.refreshInterval > 0
+            ? options.refreshInterval * 1000
+            : DEFAULT_REFRESH_INTERVAL_MS;
         this.previewMaxQueues = options.previewMaxQueues && options.previewMaxQueues > 0
             ? options.previewMaxQueues
             : DEFAULT_PREVIEW_MAX_QUEUES;
@@ -182,7 +190,7 @@ class QueueMonitorComponent extends BaseComponent {
         this.refreshTimer = window.setInterval(() => {
             this.loadQueues(true, false);
             this.loadDetails(true);
-        }, REFRESH_INTERVAL_MS);
+        }, this.refreshIntervalMs);
     }
 
     private stopAutoRefresh(): void {
@@ -415,44 +423,45 @@ class QueueMonitorComponent extends BaseComponent {
 
     // --- Detail fetching -----------------------------------------------------
 
-    private queueUrl(name: string): string {
-        return this.queueUrlTemplate.replace('__NAME__', encodeURIComponent(name));
-    }
-
     private messagesUrl(name: string): string {
         return this.messagesUrlTemplate.replace('__NAME__', encodeURIComponent(name));
     }
 
+    /**
+     * Fetches the detail (counters + length history) for every selected queue in a SINGLE
+     * request. Previously this issued one request per selected queue, which — multiplied by
+     * the auto-refresh — produced a burst of calls large enough to trip upstream IP
+     * rate-limiting. The batch endpoint returns one detail object per queue it could read.
+     */
     private loadDetails(silent: boolean): void {
-        const names = Array.from(this.selected);
+        const names = this.orderedSelected();
         if (names.length === 0) {
             return;
         }
 
-        Promise.all(names.map(name => new Promise<void>(resolve => {
-            $.ajax({url: this.queueUrl(name), method: 'GET'})
-                .done((response: {queue?: QueueDetail}) => {
-                    if (response.queue) {
-                        this.details[name] = response.queue;
+        $.ajax({url: this.queuesDetailUrl, method: 'GET', traditional: false, data: {names}})
+            .done((response: {queues?: QueueDetail[]}) => {
+                (response.queues || []).forEach(detail => {
+                    if (detail?.name) {
+                        this.details[detail.name] = detail;
                     }
-                })
-                .always(() => resolve());
-        }))).then(() => {
-            // Prune details for queues no longer selected.
-            Object.keys(this.details).forEach(name => {
-                if (!this.selected.has(name)) {
-                    delete this.details[name];
+                });
+                // Prune details for queues no longer selected.
+                Object.keys(this.details).forEach(name => {
+                    if (!this.selected.has(name)) {
+                        delete this.details[name];
+                    }
+                });
+                this.updateDynamic();
+            })
+            .fail(() => {
+                if (!silent) {
+                    this.$el.find('[data-role="detail"]').empty().append(
+                        $('<div/>', {'class': 'alert alert-error', role: 'alert'})
+                            .text(__('aaxis.tools.queue_monitor.queue_error'))
+                    );
                 }
             });
-            this.updateDynamic();
-        }).catch(() => {
-            if (!silent) {
-                this.$el.find('[data-role="detail"]').empty().append(
-                    $('<div/>', {'class': 'alert alert-error', role: 'alert'})
-                        .text(__('aaxis.tools.queue_monitor.queue_error'))
-                );
-            }
-        });
     }
 
     // --- Detail structure ----------------------------------------------------
