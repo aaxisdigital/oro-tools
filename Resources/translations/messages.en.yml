@@ -65,6 +65,9 @@ aaxis:
                     tooltip: 'Seconds between the length samples requested from RabbitMQ (default 60). Samples come from RabbitMQ''s own retained short-term history; this tool does not capture them.'
             api_collection:
                 title: 'API Collection'
+                local_rewrite:
+                    label: 'Route own-host HTTPS calls via local IP'
+                    tooltip: 'When the request URL is HTTPS and its host matches this server''s HTTP_HOST, replace it with the local interface IP that received your current request (SERVER_ADDR — shown in Dev Tools > Connection Info as "Connection arrived on local interface / IP"), keeping the original Host header. Works around setups where the public hostname is not reachable from inside the server itself.'
             base64:
                 title: 'Base64'
         base64:

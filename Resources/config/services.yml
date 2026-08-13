@@ -30,6 +30,15 @@ services:
         alias: Aaxis\Bundle\ToolsBundle\Http\ApiRequestExecutor
         public: true
 
+    Aaxis\Bundle\ToolsBundle\Http\LocalHostRewriter:
+        arguments:
+            - '@oro_config.global'
+            - '@request_stack'
+
+    aaxis_tools.local_host_rewriter:
+        alias: Aaxis\Bundle\ToolsBundle\Http\LocalHostRewriter
+        public: true
+
     # Connection tester contributed to the shared CommonBundle registry.
     Aaxis\Bundle\ToolsBundle\Connection\QueueConnectionTester:
         arguments:

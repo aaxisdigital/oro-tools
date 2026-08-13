@@ -7,6 +7,7 @@ namespace Aaxis\Bundle\ToolsBundle\Controller;
 use Aaxis\Bundle\ToolsBundle\Entity\ApiCollectionRequest;
 use Aaxis\Bundle\ToolsBundle\Entity\ApiCollectionRunHistory;
 use Aaxis\Bundle\ToolsBundle\Http\ApiRequestExecutor;
+use Aaxis\Bundle\ToolsBundle\Http\LocalHostRewriter;
 use Aaxis\Bundle\ToolsBundle\Manager\ApiCollectionManager;
 use Oro\Bundle\SecurityBundle\Attribute\CsrfProtection;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -160,7 +161,17 @@ class ApiCollectionController extends AbstractController
         $url = $this->appendQuery($url, $params);
         $headers = $this->withDefaultContentType($headers, $bodyType);
 
-        $result = $this->executor()->execute($method, $url, $headers, $body, (int) ($payload['timeout'] ?? 0));
+        // Optional own-host -> local-IP rewrite (config-gated, default off). Transport-level only:
+        // the run history below still records the URL the user asked for.
+        $targetUrl = $url;
+        $hostOverride = null;
+        $rewrite = $this->localHostRewriter()->rewrite($url);
+        if ($rewrite !== null) {
+            $targetUrl = $rewrite['url'];
+            $hostOverride = $rewrite['hostHeader'];
+        }
+
+        $result = $this->executor()->execute($method, $targetUrl, $headers, $body, (int) ($payload['timeout'] ?? 0), $hostOverride);
 
         $manager = $this->manager();
         $response = [
@@ -291,12 +302,18 @@ class ApiCollectionController extends AbstractController
         return $this->container->get(ApiRequestExecutor::class);
     }
 
+    private function localHostRewriter(): LocalHostRewriter
+    {
+        return $this->container->get(LocalHostRewriter::class);
+    }
+
     #[\Override]
     public static function getSubscribedServices(): array
     {
         return array_merge(parent::getSubscribedServices(), [
             ApiCollectionManager::class,
             ApiRequestExecutor::class,
+            LocalHostRewriter::class,
         ]);
     }
 }

@@ -16,6 +16,7 @@ services:
             - { name: container.service_subscriber }
             - { name: container.service_subscriber, id: aaxis_tools.api_collection_manager, key: Aaxis\Bundle\ToolsBundle\Manager\ApiCollectionManager }
             - { name: container.service_subscriber, id: aaxis_tools.api_request_executor, key: Aaxis\Bundle\ToolsBundle\Http\ApiRequestExecutor }
+            - { name: container.service_subscriber, id: aaxis_tools.local_host_rewriter, key: Aaxis\Bundle\ToolsBundle\Http\LocalHostRewriter }
 
     Aaxis\Bundle\ToolsBundle\Controller\Base64Controller:
         calls:

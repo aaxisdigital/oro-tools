@@ -2,7 +2,7 @@
 
 A back-office (admin) toolbox for OroCommerce that bundles a few lightweight tools under the
 **"Tools"** application-menu sub-group. Every tool can be enabled/disabled and configured from
-**System Configuration → General Setup → Aaxis Tools**.
+**System Configuration → Aaxis → General → Aaxis Tools**.
 
 - Namespace: `Aaxis\Bundle\ToolsBundle`
 - Bundle class: `AaxisToolsBundle` (auto-registered)
@@ -42,6 +42,15 @@ A lightweight, Insomnia-style REST client for building, organising and running H
 Requests are executed **server-side** (proxied via Symfony HttpClient), so the browser is not subject
 to CORS. The collection tree and run history are persisted server-side
 (`aaxis_apicollection_request`, `aaxis_apicollection_run_history`); requests can be private or public.
+
+**Own-host rewrite (hairpin work-around).** The config section exposes **"Route own-host HTTPS
+calls via local IP"** (`aaxis_tools.api_collection_local_rewrite`, default **off**). When enabled
+and a request targets `https://<the HTTP_HOST serving your current session>/...`, the URL host is
+replaced with the local interface IP that received your request (`SERVER_ADDR` — the value Dev
+Tools → Connection Info shows as *"Connection arrived on local interface / IP"*), while the
+original hostname is preserved as the `Host` header. Use it when the application's public hostname
+is not reachable from inside its own server/container. The run history still records the original
+URL.
 
 ### Base64
 Encode text or files to Base64 and decode back, entirely client-side — nothing is uploaded.

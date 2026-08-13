@@ -35,6 +35,12 @@ The extension alias is derived correctly here (`AaxisToolsExtension` → `aaxis_
 - `Queue/RabbitMqManagementClient` — RabbitMQ management HTTP API client (Queue Monitor).
 - `Http/ApiRequestExecutor` + `Manager/ApiCollectionManager` + `Entity/ApiCollection*` — API
   Collection (server-side request proxy + persisted tree/run-history).
+- `Http/LocalHostRewriter` — config-gated (`aaxis_tools.api_collection_local_rewrite`, default off)
+  hairpin work-around: an HTTPS request whose host equals the current request's `HTTP_HOST` is
+  re-targeted to `SERVER_ADDR` (the "Connection arrived on local interface / IP" value from
+  DevTools' Connection Info), original host preserved via a `Host` header override in the executor
+  (user-supplied `Host` headers stay blocked). Applied in `ApiCollectionController::executeAction`;
+  run history keeps the original URL.
 - `Connection/QueueConnectionTester.php` — the Queue Monitor "Test it" check (see below).
 - `Command/CleanupHistoryCommand.php` — `aaxis:tools:history:cleanup` cron (API Collection history).
 
@@ -55,7 +61,8 @@ with `{"tool":"queue_monitor"}`.
 
 Same shape as `AaxisDevToolsBundle` (see its `CLAUDE.md`), using the `aaxis_tools` / `aaxistools` /
 `aaxis.tools.*` / `@AaxisTools` conventions: controller(s) → `services.yml` + `controllers.yml` →
-`Configuration.php` + `system_configuration.yml` → `navigation.yml` (under `aaxis_tools_group`) →
+`Configuration.php` + `system_configuration.yml` (tree under the shared `aaxis > aaxis_general`
+tab from CommonBundle; deep links use `activeGroup: 'aaxis'`) → `navigation.yml` (under `aaxis_tools_group`) →
 `features.yml` toggle → `acls.yml` binding → `assets.yml`/`jsmodules.yml` → templates →
 `aaxis.tools.*` translations → migration (consolidated install in `AaxisToolsBundleInstaller`).
 

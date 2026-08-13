@@ -36,8 +36,14 @@ class ApiRequestExecutor
      *
      * @return array<string, mixed>
      */
-    public function execute(string $method, string $url, array $headers, ?string $body, int $timeout): array
-    {
+    public function execute(
+        string $method,
+        string $url,
+        array $headers,
+        ?string $body,
+        int $timeout,
+        ?string $hostOverride = null
+    ): array {
         $startedAt = microtime(true);
 
         // The injected client is a shared singleton; reset it so no state (a cookie jar, pooled
@@ -60,6 +66,11 @@ class ApiRequestExecutor
                 continue;
             }
             $headerLines[$key] = (string) ($header['value'] ?? '');
+        }
+        // Deliberate override coming from LocalHostRewriter (the URL targets an IP but the vhost
+        // must still see the original name); user-supplied Host headers stay blocked above.
+        if ($hostOverride !== null && $hostOverride !== '') {
+            $headerLines['Host'] = $hostOverride;
         }
 
         $options = [

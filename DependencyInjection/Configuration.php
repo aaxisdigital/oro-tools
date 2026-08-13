@@ -36,6 +36,9 @@ class Configuration implements ConfigurationInterface
             // API Collection
             'api_collection_enabled' => ['type' => 'boolean', 'value' => true],
             'api_collection_history_retention_days' => ['type' => 'integer', 'value' => 30],
+            // Hairpin work-around: route own-host HTTPS calls via the local interface IP
+            // (SERVER_ADDR). Off by default — opt-in per environment.
+            'api_collection_local_rewrite' => ['type' => 'boolean', 'value' => false],
 
             // Base64
             'base64_enabled' => ['type' => 'boolean', 'value' => true],

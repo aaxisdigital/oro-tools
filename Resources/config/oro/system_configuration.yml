@@ -96,6 +96,13 @@ system_configuration:
                 label: aaxis.tools.config.history_retention.label
                 tooltip: aaxis.tools.config.history_retention.tooltip
                 required: false
+        aaxis_tools.api_collection_local_rewrite:
+            data_type: boolean
+            type: Oro\Bundle\ConfigBundle\Form\Type\ConfigCheckbox
+            options:
+                label: aaxis.tools.config.api_collection.local_rewrite.label
+                tooltip: aaxis.tools.config.api_collection.local_rewrite.tooltip
+                required: false
 
         # --- Base64 ---
         aaxis_tools.base64_enabled:
@@ -107,9 +114,9 @@ system_configuration:
 
     tree:
         system_configuration:
-            platform:
+            aaxis:
                 children:
-                    general_setup:
+                    aaxis_general:
                         children:
                             aaxis_tools:
                                 priority: 100
@@ -132,6 +139,7 @@ system_configuration:
                                         children:
                                             - aaxis_tools.api_collection_enabled
                                             - aaxis_tools.api_collection_history_retention_days
+                                            - aaxis_tools.api_collection_local_rewrite
                                     aaxis_tools_base64:
                                         priority: 35
                                         children:
