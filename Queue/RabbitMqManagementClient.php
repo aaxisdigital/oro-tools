@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Aaxis\Bundle\ToolsBundle\Queue;
 
+use Aaxis\Bundle\ToolsBundle\Exception\RabbitMqManagementException;
+
 /**
  * Thin read-only client for the RabbitMQ management HTTP API.
  *
@@ -313,13 +315,13 @@ class RabbitMqManagementClient
      * @param array<string, mixed>|null $body
      * @return array<mixed>
      *
-     * @throws \RuntimeException on transport or HTTP errors
+     * @throws RabbitMqManagementException on transport or HTTP errors
      */
     private function request(string $method, string $path, ?array $body = null): array
     {
         $ch = curl_init($this->baseUrl . $path);
         if ($ch === false) {
-            throw new \RuntimeException('Unable to initialise the management API request.');
+            throw new RabbitMqManagementException('Unable to initialise the management API request.');
         }
 
         $headers = ['Accept: application/json'];
@@ -341,10 +343,14 @@ class RabbitMqManagementClient
         curl_close($ch);
 
         if ($response === false) {
-            throw new \RuntimeException(sprintf('RabbitMQ management API is unreachable: %s', $error));
+            throw new RabbitMqManagementException(
+                sprintf('RabbitMQ management API is unreachable: %s', $error)
+            );
         }
         if ($status >= 400) {
-            throw new \RuntimeException(sprintf('RabbitMQ management API returned HTTP %d.', $status));
+            throw new RabbitMqManagementException(
+                sprintf('RabbitMQ management API returned HTTP %d.', $status)
+            );
         }
 
         $decoded = json_decode((string) $response, true);

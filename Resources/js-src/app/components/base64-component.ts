@@ -153,7 +153,7 @@ class Base64Component extends BaseComponent {
     }
 
     onFileChange(event: any): void {
-        const file = event.currentTarget.files && event.currentTarget.files[0];
+        const file = event.currentTarget.files?.[0];
         if (file) {
             this.readFile(file);
         }
@@ -170,26 +170,28 @@ class Base64Component extends BaseComponent {
             e.preventDefault();
             $dz.removeClass('is-dragover');
             const dt = e.originalEvent.dataTransfer;
-            if (dt && dt.files && dt.files.length) {
+            if (dt?.files?.length) {
                 this.readFile(dt.files[0]);
             }
         });
     }
 
     readFile(file: File): void {
-        const reader = new FileReader();
-        reader.onload = () => {
-            const bytes = new Uint8Array(reader.result as ArrayBuffer);
-            // Output pure Base64 (no data: prefix). The file type is recovered on decode by
-            // sniffing the content, so the output stays clean and copy-friendly.
-            this.fileBase64 = this.bytesToBase64(bytes);
-            this.fileSize = bytes.length;
-            this.fileName = file.name;
-            this.$el.find('[data-role="file-name"]').prop('hidden', false).text(file.name);
-            this.convert();
-        };
-        reader.onerror = () => messenger.notificationFlashMessage('error', __('aaxis.tools.base64.read_error'));
-        reader.readAsArrayBuffer(file);
+        // Two-argument then(): the rejection handler covers the READ only, exactly like the
+        // FileReader onload/onerror pair it replaces — it must not swallow errors thrown below.
+        file.arrayBuffer().then(
+            buffer => {
+                const bytes = new Uint8Array(buffer);
+                // Output pure Base64 (no data: prefix). The file type is recovered on decode by
+                // sniffing the content, so the output stays clean and copy-friendly.
+                this.fileBase64 = this.bytesToBase64(bytes);
+                this.fileSize = bytes.length;
+                this.fileName = file.name;
+                this.$el.find('[data-role="file-name"]').prop('hidden', false).text(file.name);
+                this.convert();
+            },
+            () => messenger.notificationFlashMessage('error', __('aaxis.tools.base64.read_error'))
+        );
     }
 
     // --- Conversion --------------------------------------------------------
@@ -317,7 +319,7 @@ class Base64Component extends BaseComponent {
         }
         const ok = () => messenger.notificationFlashMessage('success', __('aaxis.tools.base64.copied'));
         const fail = () => messenger.notificationFlashMessage('error', __('aaxis.tools.base64.copy_error'));
-        if (navigator.clipboard && navigator.clipboard.writeText) {
+        if (navigator.clipboard?.writeText) {
             navigator.clipboard.writeText(value).then(ok).catch(fail);
         } else {
             fail();
@@ -337,7 +339,7 @@ class Base64Component extends BaseComponent {
         link.download = 'decoded.' + (this.binaryExt || 'bin');
         document.body.appendChild(link);
         link.click();
-        document.body.removeChild(link);
+        link.remove();
         URL.revokeObjectURL(url);
     }
 
@@ -379,8 +381,14 @@ class Base64Component extends BaseComponent {
             .replace(/\s+/g, '')
             .replace(/\\/g, '')
             .replace(/-/g, '+')
-            .replace(/_/g, '/')
-            .replace(/=+$/, '');
+            .replace(/_/g, '/');
+        // Trim the "=" padding with a scan rather than /=+$/: that pattern backtracks quadratically
+        // on a long run of "=", which a pasted payload can trivially contain.
+        let end = normalized.length;
+        while (end > 0 && normalized[end - 1] === '=') {
+            end--;
+        }
+        normalized = normalized.slice(0, end);
         const remainder = normalized.length % 4;
         if (remainder === 1) {
             throw new Error('invalid base64 length');
@@ -411,8 +419,8 @@ class Base64Component extends BaseComponent {
      * @return {{ext: string, mime: string, label: string}}
      */
     sniffType(bytes: Uint8Array): SniffResult {
-        const starts = (sig: number[], offset?: number) => {
-            const at = offset || 0;
+        const starts = (sig: number[], offset = 0) => {
+            const at = offset;
             if (bytes.length < at + sig.length) {
                 return false;
             }

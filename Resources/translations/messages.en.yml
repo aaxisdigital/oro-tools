@@ -76,6 +76,9 @@ aaxis:
             source_text: Text
             source_file: File
             dropzone_label: 'Drag & drop a file here, or'
+            input_label: 'Input'
+            output_label: 'Output'
+            file_label: 'File to encode'
             browse: browse
             copy: Copy
             download: Download
@@ -90,6 +93,7 @@ aaxis:
             hint: 'Live view of RabbitMQ queues. Message previews are returned to the queue (non-destructive).'
             help: 'Queue Monitor help'
             filter_placeholder: 'Filter queues...'
+            filter_label: 'Filter queues'
             filter_clear: 'Clear filter'
             refresh: 'Refresh queues'
             auto_refresh: 'Auto-refresh every %seconds%s'
@@ -116,6 +120,11 @@ aaxis:
             hint: 'Build and send HTTP requests from your browser. Collections are saved; runs are logged.'
             help: 'API Collection help'
             filter_placeholder: 'Filter...'
+            filter_label: 'Filter requests'
+            method_label: 'HTTP method'
+            url_label: 'Request URL'
+            body_type_label: 'Request body type'
+            body_label: 'Request body'
             new_folder: 'New folder'
             history_title: 'Run history'
             url_placeholder: 'https://example.com/api/resource'

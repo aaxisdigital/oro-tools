@@ -34,8 +34,9 @@
             <div class="aaxis-api" data-role="layout">
                 <aside class="aaxis-api__sidebar" data-role="sidebar">
                     <div class="aaxis-api__sidebar-actions">
-                        <input type="text" class="form-control aaxis-api__filter" data-role="filter"
+                        <input type="text" id="aaxis-api-filter" class="form-control aaxis-api__filter" data-role="filter"
                                placeholder="{{ 'aaxis.tools.api_collection.filter_placeholder'|trans }}"
+                               aria-label="{{ 'aaxis.tools.api_collection.filter_label'|trans }}"
                                autocomplete="off" spellcheck="false">
                         <button type="button" class="aaxis-api__add-folder" data-role="add-root-folder"
                                 title="{{ 'aaxis.tools.api_collection.new_folder'|trans }}"
@@ -57,7 +58,8 @@
                         <span>{{ 'aaxis.tools.api_collection.select_request'|trans }}</span>
                     </div>
                     <div class="aaxis-api__reqbar">
-                        <select class="form-control aaxis-api__method" data-role="method">
+                        <select id="aaxis-api-method" class="form-control aaxis-api__method" data-role="method"
+                                aria-label="{{ 'aaxis.tools.api_collection.method_label'|trans }}">
                             <option value="GET">GET</option>
                             <option value="POST">POST</option>
                             <option value="PUT">PUT</option>
@@ -66,8 +68,9 @@
                             <option value="OPTIONS">OPTIONS</option>
                             <option value="HEAD">HEAD</option>
                         </select>
-                        <input type="text" class="form-control aaxis-api__url" data-role="url"
+                        <input type="text" id="aaxis-api-url" class="form-control aaxis-api__url" data-role="url"
                                placeholder="{{ 'aaxis.tools.api_collection.url_placeholder'|trans }}"
+                               aria-label="{{ 'aaxis.tools.api_collection.url_label'|trans }}"
                                autocomplete="off" spellcheck="false">
                         <button type="button" class="btn btn-primary aaxis-api__send" data-role="send">
                             <span class="fa fa-paper-plane" aria-hidden="true"></span>
@@ -101,7 +104,8 @@
                         </div>
                         <div class="aaxis-api__panel" data-role="panel" data-tab="body" hidden>
                             <div class="aaxis-api__body-bar">
-                                <select class="form-control aaxis-api__body-type" data-role="body-type">
+                                <select id="aaxis-api-body-type" class="form-control aaxis-api__body-type" data-role="body-type"
+                                        aria-label="{{ 'aaxis.tools.api_collection.body_type_label'|trans }}">
                                     <option value="none">{{ 'aaxis.tools.api_collection.body_none'|trans }}</option>
                                     <option value="json">JSON</option>
                                     <option value="xml">XML</option>
@@ -113,7 +117,8 @@
                                     {{ 'aaxis.tools.api_collection.beautify'|trans }}
                                 </button>
                             </div>
-                            <textarea class="form-control aaxis-api__body" data-role="body"
+                            <textarea id="aaxis-api-body" class="form-control aaxis-api__body" data-role="body"
+                                      aria-label="{{ 'aaxis.tools.api_collection.body_label'|trans }}"
                                       spellcheck="false" placeholder="{{ 'aaxis.tools.api_collection.body_placeholder'|trans }}"></textarea>
                         </div>
                         <div class="aaxis-api__panel" data-role="panel" data-tab="headers" hidden>

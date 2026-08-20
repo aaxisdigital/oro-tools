@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Aaxis\Bundle\ToolsBundle\Manager;
 
 use Aaxis\Bundle\ToolsBundle\Entity\ApiCollectionRequest;
+use Aaxis\Bundle\ToolsBundle\Exception\ApiCollectionAccessDeniedException;
 use Aaxis\Bundle\ToolsBundle\Entity\ApiCollectionRunHistory;
 use Aaxis\Bundle\ToolsBundle\Entity\Repository\ApiCollectionRequestRepository;
 use Aaxis\Bundle\ToolsBundle\Entity\Repository\ApiCollectionRunHistoryRepository;
@@ -245,21 +246,31 @@ class ApiCollectionManager
     private function assertOwner(ApiCollectionRequest $node): void
     {
         if (!$this->canModify($node)) {
-            throw new \RuntimeException('You can only modify your own items.');
+            throw new ApiCollectionAccessDeniedException('You can only modify your own items.');
         }
     }
 
     private function assertCanView(ApiCollectionRequest $node): void
     {
         if (!$this->canView($node)) {
-            throw new \RuntimeException('You do not have access to this item.');
+            throw new ApiCollectionAccessDeniedException('You do not have access to this item.');
         }
     }
 
     /**
+     * Copies the supported request fields from a payload onto the node. Only keys actually present
+     * are touched, so a partial payload leaves the rest of the request alone.
+     *
      * @param array<string, mixed> $data
      */
     private function applyRequestFields(ApiCollectionRequest $node, array $data): void
+    {
+        $this->applyEndpointFields($node, $data);
+        $this->applyPayloadFields($node, $data);
+    }
+
+    /** Where the request goes: method and URL. */
+    private function applyEndpointFields(ApiCollectionRequest $node, array $data): void
     {
         if (\array_key_exists('method', $data)) {
             $node->setMethod($data['method'] !== null ? mb_substr((string) $data['method'], 0, 10) : null);
@@ -267,6 +278,11 @@ class ApiCollectionManager
         if (\array_key_exists('url', $data)) {
             $node->setUrl($data['url'] !== null ? (string) $data['url'] : null);
         }
+    }
+
+    /** What it sends: params, headers and body. */
+    private function applyPayloadFields(ApiCollectionRequest $node, array $data): void
+    {
         if (\array_key_exists('params', $data)) {
             $node->setParams(\is_array($data['params']) ? $data['params'] : null);
         }

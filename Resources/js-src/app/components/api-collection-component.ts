@@ -21,6 +21,12 @@ interface ApiCollectionOptions {
 
 interface KvPair { key: string; value: string; }
 
+/** One step of a parsed JSONPath expression. */
+interface PathToken { type: string; key?: string; i?: number; }
+
+/** The pieces of a curl command recognised by the importer. */
+interface CurlParts { method: string; url: string; headers: KvPair[]; body: string; }
+
 interface ApiNode {
     id: number;
     type: 'folder' | 'request';
@@ -98,7 +104,7 @@ const METHOD_CLASS: Record<string, string> = {
 const REF_TRIGGER = '###';
 // Matches an encoded reference token. The payload is base64 (A-Z a-z 0-9 + / =), which never
 // contains the closing braces, so the delimiters are unambiguous.
-const REF_PATTERN = '\\{\\{res:([A-Za-z0-9+/=]+)\\}\\}';
+const REF_PATTERN = String.raw`\{\{res:([A-Za-z0-9+/=]+)\}\}`;
 const REF_TOKEN_PREFIX = '{{res:';
 // Guards against reference cycles / runaway chains when auto-running referenced requests.
 const REF_MAX_DEPTH = 5;
@@ -202,7 +208,7 @@ class ApiCollectionComponent extends BaseComponent {
 
     private csrf(): string {
         const name = window.location.protocol === 'https:' ? 'https-_csrf' : '_csrf';
-        const match = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
+        const match = new RegExp('(?:^|; )' + name + '=([^;]*)').exec(document.cookie);
         return match ? decodeURIComponent(match[1]) : '';
     }
 
@@ -257,7 +263,14 @@ class ApiCollectionComponent extends BaseComponent {
     private childrenOf(parentId: number | null): ApiNode[] {
         return this.nodes
             .filter(n => n.parentId === parentId)
-            .sort((a, b) => (a.type === b.type ? a.name.localeCompare(b.name) : (a.type === 'folder' ? -1 : 1)));
+            .sort((a, b) => {
+                // Folders first, then alphabetical within each kind.
+                if (a.type !== b.type) {
+                    return a.type === 'folder' ? -1 : 1;
+                }
+
+                return a.name.localeCompare(b.name);
+            });
     }
 
     private matchIds(): Set<number> | null {
@@ -266,7 +279,7 @@ class ApiCollectionComponent extends BaseComponent {
         }
         const keep = new Set<number>();
         this.nodes.forEach(n => {
-            if (n.name.toLowerCase().indexOf(this.filterText) !== -1) {
+            if (n.name.toLowerCase().includes(this.filterText)) {
                 let cur: ApiNode | undefined = n;
                 while (cur) {
                     keep.add(cur.id);
@@ -302,30 +315,38 @@ class ApiCollectionComponent extends BaseComponent {
         if (keep && !keep.has(node.id)) {
             return null;
         }
+        const $li = $('<li/>', {'class': 'aaxis-api__node'});
+        $li.append(this.renderNodeLabel(node, keep));
+
+        const $children = this.renderNodeChildren(node, keep);
+        if ($children) {
+            $li.append($children);
+        }
+
+        return $li;
+    }
+
+    /** A filtered tree (keep set) is always shown expanded so the matches are visible. */
+    private isNodeExpanded(node: ApiNode, keep: Set<number> | null): boolean {
+        return keep ? true : !!this.expanded[node.id];
+    }
+
+    private renderNodeLabel(node: ApiNode, keep: Set<number> | null): any {
         const isActive = node.id === this.activeId;
         const isDirty = isActive && this.dirty;
-        const $li = $('<li/>', {'class': 'aaxis-api__node'});
         const $label = $('<div/>', {
             'class': 'aaxis-api__node-label' + (isActive ? ' is-active' : '') + (isDirty ? ' is-dirty' : ''),
             'data-role': 'node-label', 'data-id': node.id, 'data-type': node.type
         });
 
         if (node.type === 'folder') {
-            const expanded = keep ? true : !!this.expanded[node.id];
             $label.append($('<span/>', {
-                'class': 'fa ' + (expanded ? 'fa-folder-open' : 'fa-folder') + ' aaxis-api__node-icon',
+                'class': 'fa ' + (this.isNodeExpanded(node, keep) ? 'fa-folder-open' : 'fa-folder')
+                    + ' aaxis-api__node-icon',
                 'aria-hidden': 'true'
             }));
         } else {
-            const method = node.method || 'GET';
-            $label.append($('<span/>', {'class': 'aaxis-api__method-badge ' + (METHOD_CLASS[method] || ''), text: method}));
-            $label.append($('<span/>', {
-                'class': 'fa ' + (node.public ? 'fa-unlock-alt' : 'fa-lock') + ' aaxis-api__node-lock'
-                    + (node.public ? ' is-public' : ''),
-                'data-role': 'node-lock', 'data-id': node.id,
-                title: node.public ? __('aaxis.tools.api_collection.public') : __('aaxis.tools.api_collection.private'),
-                'aria-hidden': 'true'
-            }));
+            $label.append(...ApiCollectionComponent.renderRequestIcons(node));
         }
         $label.append($('<span/>', {'class': 'aaxis-api__node-name', text: node.name}));
 
@@ -340,22 +361,41 @@ class ApiCollectionComponent extends BaseComponent {
             type: 'button', 'class': 'aaxis-api__node-actions', 'data-role': 'node-menu', 'data-id': node.id,
             title: __('aaxis.tools.api_collection.actions'), html: '&#8942;'
         }));
-        $li.append($label);
 
-        if (node.type === 'folder') {
-            const expanded = keep ? true : !!this.expanded[node.id];
-            if (expanded) {
-                const $ul = $('<ul/>', {'class': 'aaxis-api__tree'});
-                this.childrenOf(node.id).forEach(child => {
-                    const $childLi = this.renderNode(child, keep);
-                    if ($childLi) {
-                        $ul.append($childLi);
-                    }
-                });
-                $li.append($ul);
-            }
+        return $label;
+    }
+
+    /** The method badge plus the public/private padlock shown on a request row. */
+    private static renderRequestIcons(node: ApiNode): any[] {
+        const method = node.method || 'GET';
+
+        return [
+            $('<span/>', {'class': 'aaxis-api__method-badge ' + (METHOD_CLASS[method] || ''), text: method}),
+            $('<span/>', {
+                'class': 'fa ' + (node.public ? 'fa-unlock-alt' : 'fa-lock') + ' aaxis-api__node-lock'
+                    + (node.public ? ' is-public' : ''),
+                'data-role': 'node-lock', 'data-id': node.id,
+                title: node.public ? __('aaxis.tools.api_collection.public') : __('aaxis.tools.api_collection.private'),
+                'aria-hidden': 'true'
+            })
+        ];
+    }
+
+    /** The nested <ul> for an expanded folder, or null when there is nothing to nest. */
+    private renderNodeChildren(node: ApiNode, keep: Set<number> | null): any {
+        if (node.type !== 'folder' || !this.isNodeExpanded(node, keep)) {
+            return null;
         }
-        return $li;
+
+        const $ul = $('<ul/>', {'class': 'aaxis-api__tree'});
+        this.childrenOf(node.id).forEach(child => {
+            const $childLi = this.renderNode(child, keep);
+            if ($childLi) {
+                $ul.append($childLi);
+            }
+        });
+
+        return $ul;
     }
 
     private onNodeLabel(event: any): void {
@@ -471,18 +511,24 @@ class ApiCollectionComponent extends BaseComponent {
         }
         const items: Array<{action: string; label: string}> = [];
         if (node.type === 'folder') {
-            items.push({action: 'add-folder', label: __('aaxis.tools.api_collection.menu_add_folder')});
-            items.push({action: 'add-request', label: __('aaxis.tools.api_collection.menu_add_request')});
-            items.push({action: 'import-curl', label: __('aaxis.tools.api_collection.menu_import_curl')});
+            items.push(
+                {action: 'add-folder', label: __('aaxis.tools.api_collection.menu_add_folder')},
+                {action: 'add-request', label: __('aaxis.tools.api_collection.menu_add_request')},
+                {action: 'import-curl', label: __('aaxis.tools.api_collection.menu_import_curl')}
+            );
         } else {
-            items.push({action: 'export-curl', label: __('aaxis.tools.api_collection.menu_export_curl')});
-            items.push({action: 'duplicate', label: __('aaxis.tools.api_collection.menu_duplicate')});
+            items.push(
+                {action: 'export-curl', label: __('aaxis.tools.api_collection.menu_export_curl')},
+                {action: 'duplicate', label: __('aaxis.tools.api_collection.menu_duplicate')}
+            );
             if (id === this.activeId && this.dirty) {
                 items.push({action: 'discard', label: __('aaxis.tools.api_collection.menu_discard')});
             }
         }
-        items.push({action: 'rename', label: __('aaxis.tools.api_collection.menu_rename')});
-        items.push({action: 'remove', label: __('aaxis.tools.api_collection.menu_remove')});
+        items.push(
+            {action: 'rename', label: __('aaxis.tools.api_collection.menu_rename')},
+            {action: 'remove', label: __('aaxis.tools.api_collection.menu_remove')}
+        );
         this.openMenu(event.currentTarget, id, items);
     }
 
@@ -565,7 +611,7 @@ class ApiCollectionComponent extends BaseComponent {
         let created: any = null;
         this.apiFetch(this.urls.create, 'POST', {type: 'request', name, parentId, method: 'GET', url: '', bodyType: 'none'})
             .then((res: any) => {
-                created = res.data && res.data.node ? res.data.node : null;
+                created = res.data?.node || null;
                 return this.loadTree();
             })
             .then(() => {
@@ -702,7 +748,7 @@ class ApiCollectionComponent extends BaseComponent {
             return;
         }
         const node = this.findNode(this.activeId);
-        if (node && node.type === 'request' && node.owned) {
+        if (node?.type === 'request' && node?.owned) {
             node.method = String(this.$el.find('[data-role="method"]').val() || 'GET');
         }
         this.markDirty();
@@ -788,7 +834,7 @@ class ApiCollectionComponent extends BaseComponent {
             return;
         }
         const node = this.findNode(this.activeId);
-        if (!node || node.type !== 'request' || !node.owned || this.dirty) {
+        if (node?.type !== 'request' || !node?.owned || this.dirty) {
             return;
         }
         this.dirty = true;
@@ -797,7 +843,7 @@ class ApiCollectionComponent extends BaseComponent {
 
     private saveActive(silent: boolean): void {
         const node = this.findNode(this.activeId);
-        if (!node || node.type !== 'request' || !node.owned) {
+        if (node?.type !== 'request' || !node?.owned) {
             return;
         }
         const req = this.collectRequest();
@@ -984,8 +1030,22 @@ class ApiCollectionComponent extends BaseComponent {
         if (!res) {
             return;
         }
-        const statusClass = res.status >= 500 ? 'is-5xx' : (res.status >= 400 ? 'is-4xx' : (res.status >= 300 ? 'is-3xx' : 'is-2xx'));
+        let statusClass = 'is-2xx';
+        if (res.status >= 500) {
+            statusClass = 'is-5xx';
+        } else if (res.status >= 400) {
+            statusClass = 'is-4xx';
+        } else if (res.status >= 300) {
+            statusClass = 'is-3xx';
+        }
 
+        $result.append(this.renderResultMeta(res, statusClass));
+        $result.append(this.renderResultTabs());
+        $result.append(this.renderResultPanel(res));
+    }
+
+    /** Status pill plus the timing/size stats and the "from this session" marker. */
+    private renderResultMeta(res: LastResponse, statusClass: string): any {
         const $meta = $('<div/>', {'class': 'aaxis-api__res-meta'});
         $meta.append($('<span/>', {'class': 'aaxis-api__status ' + statusClass, text: res.status + ' ' + (res.statusText || '')}));
         $meta.append($('<span/>', {'class': 'aaxis-api__res-stat', text: res.timeMs + ' ms'}));
@@ -996,8 +1056,11 @@ class ApiCollectionComponent extends BaseComponent {
                 text: __('aaxis.tools.api_collection.cached_response')
             }));
         }
-        $result.append($meta);
 
+        return $meta;
+    }
+
+    private renderResultTabs(): any {
         const $tabs = $('<div/>', {'class': 'aaxis-api__res-tabs'});
         ['headers', 'body'].forEach(tab => {
             $tabs.append($('<button/>', {
@@ -1009,8 +1072,11 @@ class ApiCollectionComponent extends BaseComponent {
                     : __('aaxis.tools.api_collection.response_body')
             }));
         });
-        $result.append($tabs);
 
+        return $tabs;
+    }
+
+    private renderResultPanel(res: LastResponse): any {
         const $panel = $('<div/>', {'class': 'aaxis-api__res-panel'});
         if (this.resultTab === 'headers') {
             const $h = $('<div/>', {'class': 'aaxis-api__res-headers'});
@@ -1020,31 +1086,54 @@ class ApiCollectionComponent extends BaseComponent {
             )));
             $panel.append($h);
         } else {
-            const pre = document.createElement('pre');
-            pre.className = 'cm-s-default aaxis-api__res-body';
-            const mode = this.modeForContentType(res.contentType);
-            let text = res.body;
-            if (mode && mode.json) {
-                try {
-                    text = JSON.stringify(JSON.parse(res.body), null, 2);
-                } catch (e) { /* keep raw */ }
-            } else if (mode && mode.mode === 'xml') {
-                try {
-                    text = this.formatXml(res.body);
-                } catch (e) { /* keep raw */ }
-            }
-            if (mode) {
-                try {
-                    (CodeMirror as any).runMode(text, mode.mode, pre);
-                } catch (e) {
-                    pre.textContent = text;
-                }
-            } else {
-                pre.textContent = text;
-            }
-            $panel.append(pre);
+            $panel.append(this.renderResultBody(res));
         }
-        $result.append($panel);
+
+        return $panel;
+    }
+
+    /**
+     * Pretty-prints and syntax-highlights the body when the content type is recognised. Every step
+     * is best-effort: malformed JSON/XML, or a CodeMirror failure, falls back to the raw text.
+     */
+    private renderResultBody(res: LastResponse): HTMLElement {
+        const pre = document.createElement('pre');
+        pre.className = 'cm-s-default aaxis-api__res-body';
+        const mode = this.modeForContentType(res.contentType);
+        const text = this.prettifyBody(res.body, mode);
+        if (!mode) {
+            pre.textContent = text;
+
+            return pre;
+        }
+
+        try {
+            (CodeMirror as any).runMode(text, mode.mode, pre);
+        } catch {
+            // Highlighting is cosmetic — show the text unhighlighted rather than nothing.
+            pre.textContent = text;
+        }
+
+        return pre;
+    }
+
+    private prettifyBody(body: string, mode: {mode: any; json?: boolean} | null): string {
+        if (mode?.json) {
+            try {
+                return JSON.stringify(JSON.parse(body), null, 2);
+            } catch {
+                return body; // not actually JSON — keep raw
+            }
+        }
+        if (mode?.mode === 'xml') {
+            try {
+                return this.formatXml(body);
+            } catch {
+                return body; // malformed XML — keep raw
+            }
+        }
+
+        return body;
     }
 
     private onResTab(event: any): void {
@@ -1054,13 +1143,13 @@ class ApiCollectionComponent extends BaseComponent {
 
     private modeForContentType(ct: string): {mode: any; json?: boolean} | null {
         const c = ct.toLowerCase();
-        if (c.indexOf('json') !== -1) {
+        if (c.includes('json')) {
             return {mode: {name: 'javascript', json: true}, json: true};
         }
-        if (c.indexOf('html') !== -1) {
+        if (c.includes('html')) {
             return {mode: 'htmlmixed'};
         }
-        if (c.indexOf('xml') !== -1) {
+        if (c.includes('xml')) {
             return {mode: 'xml'};
         }
         return null;
@@ -1083,7 +1172,8 @@ class ApiCollectionComponent extends BaseComponent {
         try {
             const raw = window.sessionStorage.getItem(this.storeKey(id));
             return raw ? JSON.parse(raw) as StoredResponse : null;
-        } catch (e) {
+        } catch {
+            // Unreadable/absent storage is not an error here: the reference falls back to auto-run.
             return null;
         }
     }
@@ -1111,19 +1201,25 @@ class ApiCollectionComponent extends BaseComponent {
             payload.q = def.q;
         }
         const json = JSON.stringify(payload);
-        return REF_TOKEN_PREFIX + window.btoa(unescape(encodeURIComponent(json))) + '}}';
+        const bytes = new TextEncoder().encode(json);
+
+        return REF_TOKEN_PREFIX + window.btoa(String.fromCodePoint(...bytes)) + '}}';
     }
 
     private decodeRef(b64: string): RefDef | null {
         try {
-            const json = decodeURIComponent(escape(window.atob(b64)));
+            const binary = window.atob(b64);
+            const json = new TextDecoder().decode(
+                Uint8Array.from(binary, c => c.codePointAt(0) ?? 0)
+            );
             const d = JSON.parse(json);
             if (!d || typeof d.r !== 'number') {
                 return null;
             }
-            const run = ['none', 'ifEmpty', 'always'].indexOf(d.run) !== -1 ? d.run : 'ifEmpty';
+            const run = ['none', 'ifEmpty', 'always'].includes(d.run) ? d.run : 'ifEmpty';
             return {r: d.r, src: d.src === 'header' ? 'header' : 'body', h: d.h, q: d.q, run};
-        } catch (e) {
+        } catch {
+            // Any malformed token decodes to "no reference" rather than breaking the editor.
             return null;
         }
     }
@@ -1144,7 +1240,7 @@ class ApiCollectionComponent extends BaseComponent {
         const warnings: string[] = [];
         const resolve = async (s: string): Promise<string> => {
             const r = await this.resolveString(s, visited);
-            r.warnings.forEach(w => { if (warnings.indexOf(w) === -1) { warnings.push(w); } });
+            r.warnings.forEach(w => { if (!warnings.includes(w)) { warnings.push(w); } });
             return r.value;
         };
 
@@ -1163,7 +1259,7 @@ class ApiCollectionComponent extends BaseComponent {
     }
 
     private async resolveString(text: string, visited: number[]): Promise<{value: string; warnings: string[]}> {
-        if (!text || text.indexOf(REF_TOKEN_PREFIX) === -1) {
+        if (!text?.includes(REF_TOKEN_PREFIX)) {
             return {value: text, warnings: []};
         }
         const warnings: string[] = [];
@@ -1180,7 +1276,7 @@ class ApiCollectionComponent extends BaseComponent {
             const resp = await this.ensureResponse(ref.def, visited, warnings);
             values[ref.raw] = resp ? this.extractValue(resp, ref.def, warnings) : '';
         }
-        const value = text.replace(new RegExp(REF_PATTERN, 'g'), m => (values[m] !== undefined ? values[m] : m));
+        const value = text.replace(new RegExp(REF_PATTERN, 'g'), m => values[m] ?? m);
         return {value, warnings};
     }
 
@@ -1190,7 +1286,7 @@ class ApiCollectionComponent extends BaseComponent {
      */
     private async ensureResponse(def: RefDef, visited: number[], warnings: string[]): Promise<StoredResponse | null> {
         const node = this.findNode(def.r);
-        if (!node || node.type !== 'request') {
+        if (node?.type !== 'request') {
             warnings.push(__('aaxis.tools.api_collection.ref_warn_missing'));
             return null;
         }
@@ -1204,7 +1300,7 @@ class ApiCollectionComponent extends BaseComponent {
                 return null;
             }
         }
-        if (visited.indexOf(def.r) !== -1 || visited.length >= REF_MAX_DEPTH) {
+        if (visited.includes(def.r) || visited.length >= REF_MAX_DEPTH) {
             warnings.push(__('aaxis.tools.api_collection.ref_warn_cycle', {name: node.name}));
             return this.readStoredResponse(def.r);
         }
@@ -1214,10 +1310,10 @@ class ApiCollectionComponent extends BaseComponent {
             headers: node.headers || [], bodyType: node.bodyType || 'none', body: node.body || ''
         };
         const child = await this.resolveRequestData(childReq, visited.concat(def.r));
-        child.warnings.forEach(w => { if (warnings.indexOf(w) === -1) { warnings.push(w); } });
+        child.warnings.forEach(w => { if (!warnings.includes(w)) { warnings.push(w); } });
 
         const resp = await this.execRequest(def.r, node.name, child.data);
-        if (resp && resp.success) {
+        if (resp?.success) {
             const stored = this.toStored(resp);
             this.storeResponseFor(def.r, stored);
             return stored;
@@ -1231,7 +1327,7 @@ class ApiCollectionComponent extends BaseComponent {
         return this.apiFetch(this.urls.execute, 'POST', {
             requestId, name, method: data.method, url: data.url,
             params: data.params, headers: data.headers, bodyType: data.bodyType, body: data.body
-        }).then((res: any) => (res.data && res.data.response) ? res.data.response : null)
+        }).then((res: any) => res.data?.response || null)
             .catch(() => null);
     }
 
@@ -1251,7 +1347,7 @@ class ApiCollectionComponent extends BaseComponent {
         if (q === '') {
             return resp.body;
         }
-        if (q.charAt(0) === '/') {
+        if (q.startsWith('/')) {
             const res = this.xpathQuery(resp.body, q);
             if (res === null) {
                 warnings.push(__('aaxis.tools.api_collection.ref_warn_xml'));
@@ -1262,8 +1358,9 @@ class ApiCollectionComponent extends BaseComponent {
         // Anything else is treated as JSONPath (a leading "$" is optional).
         try {
             const obj = JSON.parse(resp.body);
-            return this.stringifyMatches(this.jsonPath(obj, q.charAt(0) === '$' ? q : '$.' + q));
-        } catch (e) {
+            return this.stringifyMatches(this.jsonPath(obj, q.startsWith('$') ? q : '$.' + q));
+        } catch {
+            // The body was not JSON; the warning already tells the user, so the detail adds nothing.
             warnings.push(__('aaxis.tools.api_collection.ref_warn_json'));
             return '';
         }
@@ -1280,7 +1377,7 @@ class ApiCollectionComponent extends BaseComponent {
 
     private jsonPath(obj: any, path: string): any[] {
         let p = path.trim();
-        if (p.charAt(0) === '$') {
+        if (p.startsWith('$')) {
             p = p.slice(1);
         }
         let current: any[] = [obj];
@@ -1318,50 +1415,75 @@ class ApiCollectionComponent extends BaseComponent {
         return current;
     }
 
-    private tokenizeJsonPath(p: string): Array<{type: string; key?: string; i?: number}> {
-        const tokens: Array<{type: string; key?: string; i?: number}> = [];
-        const namePart = /[\w$-]/;
+    private tokenizeJsonPath(p: string): PathToken[] {
+        const tokens: PathToken[] = [];
         let i = 0;
         while (i < p.length) {
-            if (p.charAt(i) === '.') {
-                if (p.charAt(i + 1) === '.') {
-                    tokens.push({type: 'recurse'});
-                    i += 2;
-                    continue;
+            const ch = p.charAt(i);
+            if (ch === '.') {
+                i = ApiCollectionComponent.readDotToken(p, i, tokens);
+            } else if (ch === '[') {
+                const next = ApiCollectionComponent.readBracketToken(p, i, tokens);
+                if (next === null) {
+                    break; // unterminated "[" — stop rather than loop forever
                 }
-                i += 1;
-                continue;
-            }
-            if (p.charAt(i) === '[') {
-                const end = p.indexOf(']', i);
-                if (end === -1) {
-                    break;
-                }
-                let inner = p.slice(i + 1, end).trim();
-                if (inner === '*') {
-                    tokens.push({type: 'wild'});
-                } else if (/^-?\d+$/.test(inner)) {
-                    tokens.push({type: 'index', i: parseInt(inner, 10)});
-                } else {
-                    inner = inner.replace(/^['"]|['"]$/g, '');
-                    tokens.push({type: 'child', key: inner});
-                }
-                i = end + 1;
-                continue;
-            }
-            let j = i;
-            while (j < p.length && namePart.test(p.charAt(j))) {
-                j += 1;
-            }
-            if (j > i) {
-                const key = p.slice(i, j);
-                tokens.push(key === '*' ? {type: 'wild'} : {type: 'child', key});
-                i = j;
+                i = next;
             } else {
-                i += 1;
+                i = ApiCollectionComponent.readNameToken(p, i, tokens);
             }
         }
+
         return tokens;
+    }
+
+    /** "." is just a separator; ".." is a recursive descent. Returns the next index. */
+    private static readDotToken(p: string, i: number, tokens: PathToken[]): number {
+        if (p.charAt(i + 1) === '.') {
+            tokens.push({type: 'recurse'});
+
+            return i + 2;
+        }
+
+        return i + 1;
+    }
+
+    /**
+     * A "[...]" subscript: "*", an integer index, or a (possibly quoted) key. Returns the next
+     * index, or null when the bracket is never closed.
+     */
+    private static readBracketToken(p: string, i: number, tokens: PathToken[]): number | null {
+        const end = p.indexOf(']', i);
+        if (end === -1) {
+            return null;
+        }
+
+        const inner = p.slice(i + 1, end).trim();
+        if (inner === '*') {
+            tokens.push({type: 'wild'});
+        } else if (/^-?\d+$/.test(inner)) {
+            tokens.push({type: 'index', i: Number.parseInt(inner, 10)});
+        } else {
+            tokens.push({type: 'child', key: inner.replace(/^['"]|['"]$/g, '')});
+        }
+
+        return end + 1;
+    }
+
+    /** A bare name segment. A character that cannot start a name is skipped. */
+    private static readNameToken(p: string, i: number, tokens: PathToken[]): number {
+        const namePart = /[\w$-]/;
+        let j = i;
+        while (j < p.length && namePart.test(p.charAt(j))) {
+            j += 1;
+        }
+        if (j === i) {
+            return i + 1;
+        }
+
+        const key = p.slice(i, j);
+        tokens.push(key === '*' ? {type: 'wild'} : {type: 'child', key});
+
+        return j;
     }
 
     private collectDescendants(node: any, out: any[]): void {
@@ -1395,7 +1517,8 @@ class ApiCollectionComponent extends BaseComponent {
                     return out;
                 }
             }
-        } catch (e) {
+        } catch {
+            // Invalid XPath or non-XML body — treated as "no match".
             return null;
         }
     }
@@ -1424,7 +1547,7 @@ class ApiCollectionComponent extends BaseComponent {
             }
         });
         const text = cm.getValue();
-        if (text.indexOf(REF_TOKEN_PREFIX) === -1) {
+        if (!text.includes(REF_TOKEN_PREFIX)) {
             return;
         }
         const re = new RegExp(REF_PATTERN, 'g');
@@ -1494,7 +1617,7 @@ class ApiCollectionComponent extends BaseComponent {
     private editInputTokenAtCaret(input: HTMLInputElement): void {
         const value = input.value;
         const caret = input.selectionStart ?? -1;
-        if (caret < 0 || value.indexOf(REF_TOKEN_PREFIX) === -1) {
+        if (caret < 0 || !value.includes(REF_TOKEN_PREFIX)) {
             return;
         }
         const re = new RegExp(REF_PATTERN, 'g');
@@ -1610,7 +1733,7 @@ class ApiCollectionComponent extends BaseComponent {
         syncAttr();
 
         const readForm = (): RefDef | null => {
-            const r = parseInt(String($reqSelect.val() || ''), 10);
+            const r = Number.parseInt(String($reqSelect.val() || ''), 10);
             if (!Number.isFinite(r)) {
                 return null;
             }
@@ -1652,17 +1775,19 @@ class ApiCollectionComponent extends BaseComponent {
             onInsert(this.encodeRef(def));
             modal.close();
         });
-        modal.on('hidden', () => select2s.forEach(s => s && s.dispose()));
+        modal.on('hidden', () => select2s.forEach(s => s?.dispose()));
         modal.open();
         modal.$el.find('.modal-body').append($form);
 
         // Enhance the native selects into searchable combos (request needs type-ahead; the short
         // body/header and auto-run lists hide their search box). Dropdowns render inside the modal.
-        select2s.push(this.initSelect2($reqSelect, {width: '100%', dropdownParent: modal.$el}));
-        select2s.push(this.initSelect2($attrSelect,
-            {width: '100%', minimumResultsForSearch: Infinity, dropdownParent: modal.$el}));
-        select2s.push(this.initSelect2($runSelect,
-            {width: '100%', minimumResultsForSearch: Infinity, dropdownParent: modal.$el}));
+        select2s.push(
+            this.initSelect2($reqSelect, {width: '100%', dropdownParent: modal.$el}),
+            this.initSelect2($attrSelect,
+                {width: '100%', minimumResultsForSearch: Infinity, dropdownParent: modal.$el}),
+            this.initSelect2($runSelect,
+                {width: '100%', minimumResultsForSearch: Infinity, dropdownParent: modal.$el})
+        );
     }
 
     // --- Run history ---------------------------------------------------------
@@ -1706,7 +1831,7 @@ class ApiCollectionComponent extends BaseComponent {
         const query = (node.params || []).filter(p => p.key !== '')
             .map(p => encodeURIComponent(p.key) + '=' + encodeURIComponent(p.value)).join('&');
         if (query !== '') {
-            url += (url.indexOf('?') !== -1 ? '&' : '?') + query;
+            url += (url.includes('?') ? '&' : '?') + query;
         }
         parts.push(this.shellQuote(url));
         const curl = parts.join(' ');
@@ -1730,7 +1855,7 @@ class ApiCollectionComponent extends BaseComponent {
     }
 
     private shellQuote(value: string): string {
-        return "'" + String(value).replace(/'/g, "'\\''") + "'";
+        return "'" + String(value).replace(/'/g, String.raw`'\''`) + "'";
     }
 
     private importCurl(parentId: number): void {
@@ -1799,7 +1924,7 @@ class ApiCollectionComponent extends BaseComponent {
                 method: parsed.method, url: parsed.url, headers: parsed.headers,
                 params: [], bodyType: this.guessBodyType(parsed.body), body: parsed.body
             }).then((res: any) => {
-                if (res && res.ok && res.data && res.data.success) {
+                if (res?.ok && res.data?.success) {
                     return this.loadTree().then(() => modal.close());
                 }
                 throw new Error('import failed');
@@ -1814,7 +1939,7 @@ class ApiCollectionComponent extends BaseComponent {
     }
 
     private parseCurl(raw: string): {method: string; url: string; headers: KvPair[]; body: string} | null {
-        if (raw.indexOf('curl') === -1) {
+        if (!raw.includes('curl')) {
             return null;
         }
         // Join shell line-continuations ("\" at end of a line) so flags stay paired with values.
@@ -1824,44 +1949,72 @@ class ApiCollectionComponent extends BaseComponent {
         // multi-line quoted bodies — common for pretty-printed JSON — are unquoted too.
         const unq = (t: string) => {
             const q = t.charAt(0);
-            return t.length >= 2 && (q === '\'' || q === '"') && t.charAt(t.length - 1) === q
+            return t.length >= 2 && (q === '\'' || q === '"') && t.endsWith(q)
                 ? t.slice(1, -1)
                 : t;
         };
-        let method = '';
-        let url = '';
-        const headers: KvPair[] = [];
-        let body = '';
-        for (let i = 0; i < tokens.length; i++) {
-            const t = tokens[i];
-            // Skip the command name and any stray line-continuation backslashes (e.g. "curl \").
-            if (t === 'curl' || t === '\\') {
-                continue;
-            }
-            if (t === '-X' || t === '--request') {
-                method = unq(tokens[++i] || 'GET').toUpperCase();
-            } else if (t === '--url') {
-                url = unq(tokens[++i] || '');
-            } else if (t === '-H' || t === '--header') {
-                const h = unq(tokens[++i] || '');
-                const idx = h.indexOf(':');
-                if (idx !== -1) {
-                    headers.push({key: h.slice(0, idx).trim(), value: h.slice(idx + 1).trim()});
-                }
-            } else if (t === '-d' || t === '--data' || t === '--data-raw'
-                || t === '--data-binary' || t === '--data-urlencode') {
-                body = unq(tokens[++i] || '');
-            } else if (url === '' && t.charAt(0) !== '-') {
-                url = unq(t);
-            }
+        const parts: CurlParts = {method: '', url: '', headers: [], body: ''};
+        let i = 0;
+        while (i < tokens.length) {
+            // readCurlToken returns the last index it consumed, so step past it.
+            i = ApiCollectionComponent.readCurlToken(tokens, i, parts, unq) + 1;
         }
-        if (url === '') {
+        if (parts.url === '') {
             return null;
         }
-        if (method === '') {
-            method = body !== '' ? 'POST' : 'GET';
+        if (parts.method === '') {
+            parts.method = parts.body !== '' ? 'POST' : 'GET';
         }
-        return {method, url, headers, body};
+
+        return parts;
+    }
+
+    /**
+     * Consumes the flag at `i` — plus its value, for the flags that take one — into `parts`, and
+     * returns the last index used so the caller's loop resumes after it.
+     */
+    private static readCurlToken(
+        tokens: string[],
+        i: number,
+        parts: CurlParts,
+        unq: (t: string) => string
+    ): number {
+        const t = tokens[i];
+        // Skip the command name and any stray line-continuation backslashes (e.g. "curl \").
+        if (t === 'curl' || t === '\\') {
+            return i;
+        }
+        if (t === '-X' || t === '--request') {
+            parts.method = unq(tokens[i + 1] || 'GET').toUpperCase();
+
+            return i + 1;
+        }
+        if (t === '--url') {
+            parts.url = unq(tokens[i + 1] || '');
+
+            return i + 1;
+        }
+        if (t === '-H' || t === '--header') {
+            const h = unq(tokens[i + 1] || '');
+            const idx = h.indexOf(':');
+            if (idx !== -1) {
+                parts.headers.push({key: h.slice(0, idx).trim(), value: h.slice(idx + 1).trim()});
+            }
+
+            return i + 1;
+        }
+        if (t === '-d' || t === '--data' || t === '--data-raw'
+            || t === '--data-binary' || t === '--data-urlencode') {
+            parts.body = unq(tokens[i + 1] || '');
+
+            return i + 1;
+        }
+        // First bare (non-flag) token is the URL.
+        if (parts.url === '' && !t.startsWith('-')) {
+            parts.url = unq(t);
+        }
+
+        return i;
     }
 
     /** Picks an editor body type from an imported body's shape (JSON / XML / form / raw). */
@@ -1870,10 +2023,10 @@ class ApiCollectionComponent extends BaseComponent {
         if (b === '') {
             return 'none';
         }
-        if (b.charAt(0) === '{' || b.charAt(0) === '[') {
+        if (b.startsWith('{') || b.startsWith('[')) {
             return 'json';
         }
-        if (b.charAt(0) === '<') {
+        if (b.startsWith('<')) {
             return 'xml';
         }
         if (/^[^=&\s]+=[^=&]*(&[^=&\s]+=[^=&]*)*$/.test(b)) {

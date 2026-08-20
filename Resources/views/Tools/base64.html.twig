@@ -42,7 +42,8 @@
                         <span class="aaxis-base64__count" data-role="input-count"></span>
                     </header>
 
-                    <textarea class="aaxis-base64__area" data-role="input" spellcheck="false"
+                    <textarea id="aaxis-base64-input" class="aaxis-base64__area" data-role="input" spellcheck="false"
+                              aria-label="{{ 'aaxis.tools.base64.input_label'|trans }}"
                               autocomplete="off" autocapitalize="off"></textarea>
 
                     <div class="aaxis-base64__dropzone" data-role="dropzone" hidden>
@@ -52,7 +53,8 @@
                             <button type="button" class="aaxis-base64__link" data-role="browse">{{ 'aaxis.tools.base64.browse'|trans }}</button>
                         </p>
                         <p class="aaxis-base64__file-name" data-role="file-name" hidden></p>
-                        <input type="file" data-role="file" hidden>
+                        <input type="file" id="aaxis-base64-file" data-role="file"
+                               aria-label="{{ 'aaxis.tools.base64.file_label'|trans }}" hidden>
                     </div>
 
                     <footer class="aaxis-base64__io-foot">
@@ -86,7 +88,9 @@
                         <span class="aaxis-base64__count" data-role="output-count"></span>
                     </header>
 
-                    <textarea class="aaxis-base64__area" data-role="output" readonly spellcheck="false"></textarea>
+                    <textarea id="aaxis-base64-output" class="aaxis-base64__area" data-role="output" readonly
+                              aria-label="{{ 'aaxis.tools.base64.output_label'|trans }}"
+                              spellcheck="false"></textarea>
 
                     <div class="aaxis-base64__binary" data-role="binary" hidden>
                         <span class="fa fa-file-archive-o aaxis-base64__binary-icon" aria-hidden="true"></span>

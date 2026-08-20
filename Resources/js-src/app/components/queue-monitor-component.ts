@@ -235,7 +235,7 @@ class QueueMonitorComponent extends BaseComponent {
             })
             .fail((jqXhr: any) => {
                 if (!silent) {
-                    const message = (jqXhr.responseJSON && jqXhr.responseJSON.message)
+                    const message = jqXhr.responseJSON?.message
                         || __('aaxis.tools.queue_monitor.queues_error');
                     this.$el.find('[data-role="queues"]').empty().append(
                         $('<li/>', {'class': 'aaxis-queue-mon__empty'}).text(message)
@@ -247,7 +247,7 @@ class QueueMonitorComponent extends BaseComponent {
     private renderQueues(): void {
         const $list = this.$el.find('[data-role="queues"]').empty();
         const visible = this.queues.filter(queue =>
-            this.filterText === '' || queue.name.toLowerCase().indexOf(this.filterText) !== -1
+            this.filterText === '' || queue.name.toLowerCase().includes(this.filterText)
         );
 
         if (visible.length === 0) {
@@ -258,7 +258,7 @@ class QueueMonitorComponent extends BaseComponent {
 
         visible.forEach(queue => {
             const index = this.queues.indexOf(queue);
-            const color = this.colorFor(queue.name, index < 0 ? 0 : index);
+            const color = this.colorFor(queue.name, Math.max(index, 0));
             const isSelected = this.selected.has(queue.name);
 
             const $row = $('<div/>', {
@@ -379,7 +379,7 @@ class QueueMonitorComponent extends BaseComponent {
     private onSelectAll(event: any): void {
         event.preventDefault();
         this.queues
-            .filter(queue => this.filterText === '' || queue.name.toLowerCase().indexOf(this.filterText) !== -1)
+            .filter(queue => this.filterText === '' || queue.name.toLowerCase().includes(this.filterText))
             .forEach(queue => this.selected.add(queue.name));
         this.renderQueues();
         this.renderDetailStructure();
@@ -418,7 +418,7 @@ class QueueMonitorComponent extends BaseComponent {
     }
 
     private cssEscape(value: string): string {
-        return value.replace(/["\\]/g, '\\$&');
+        return value.replace(/["\\]/g, String.raw`\$&`);
     }
 
     // --- Detail fetching -----------------------------------------------------
@@ -792,7 +792,7 @@ class QueueMonitorComponent extends BaseComponent {
         const $btn = $(event.currentTarget);
         $btn.prop('disabled', true);
 
-        let count = parseInt(String(this.$el.find('[data-role="preview-count"]').val() || ''), 10);
+        let count = Number.parseInt(String(this.$el.find('[data-role="preview-count"]').val() || ''), 10);
         if (!Number.isFinite(count) || count < 1) {
             count = Math.min(DEFAULT_PREVIEW_MESSAGES, this.maxMessageFetch);
         }
@@ -814,7 +814,7 @@ class QueueMonitorComponent extends BaseComponent {
         }).then(response => response.json().then(data => ({ok: response.ok, data})))
             .then(({ok, data}) => {
                 if (!ok) {
-                    throw new Error((data && data.message) || 'error');
+                    throw new Error(data?.message || 'error');
                 }
                 this.renderMessages($messages, (data.messages || []) as QueueMessage[]);
             })
@@ -872,7 +872,7 @@ class QueueMonitorComponent extends BaseComponent {
         const onSuccess = () => messenger.notificationFlashMessage('success', __('aaxis.tools.queue_monitor.copied'));
         const onError = () => messenger.notificationFlashMessage('error', __('aaxis.tools.queue_monitor.copy_error'));
 
-        if (window.navigator.clipboard && window.navigator.clipboard.writeText) {
+        if (window.navigator.clipboard?.writeText) {
             window.navigator.clipboard.writeText(text).then(onSuccess).catch(onError);
             return;
         }
@@ -886,10 +886,11 @@ class QueueMonitorComponent extends BaseComponent {
         try {
             document.execCommand('copy');
             onSuccess();
-        } catch (e) {
+        } catch {
+            // The browser refused the copy; onError() is the whole response.
             onError();
         }
-        document.body.removeChild(textarea);
+        textarea.remove();
     }
 
     private prettyPayload(payload: string): string {
@@ -962,7 +963,7 @@ class QueueMonitorComponent extends BaseComponent {
 
     private getCsrfToken(): string {
         const name = window.location.protocol === 'https:' ? 'https-_csrf' : '_csrf';
-        const match = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
+        const match = new RegExp('(?:^|; )' + name + '=([^;]*)').exec(document.cookie);
         return match ? decodeURIComponent(match[1]) : '';
     }
 

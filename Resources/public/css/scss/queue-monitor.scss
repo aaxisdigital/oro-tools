@@ -262,14 +262,14 @@ $aaxis-qm-splitter-hover: #b7b7b7;
         padding: 0 6px;
         border-radius: 9px;
         background: #eef1f4;
-        color: #8a98a6;
+        color: #5f6e7d;
         font-size: 11px;
         line-height: 17px;
         text-align: center;
 
         &.has-value.is-ready {
             background: #e1f0ff;
-            color: #1f6fd6;
+            color: #1d69cb;
         }
 
         &.has-value.is-unacked {
@@ -348,7 +348,7 @@ $aaxis-qm-splitter-hover: #b7b7b7;
 
         &.is-idle {
             background: #fff6e5;
-            color: #b8860b;
+            color: #8f6809;
         }
     }
 
@@ -544,7 +544,7 @@ $aaxis-qm-splitter-hover: #b7b7b7;
         font-family: SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
         font-size: 12px;
         white-space: pre-wrap;
-        word-break: break-word;
+        overflow-wrap: break-word;
     }
     // --- Maximized graph mode ----------------------------------------------
     &.is-maximized {

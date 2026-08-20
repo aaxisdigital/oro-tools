@@ -46,41 +46,16 @@ class ApiRequestExecutor
     ): array {
         $startedAt = microtime(true);
 
-        // The injected client is a shared singleton; reset it so no state (a cookie jar, pooled
-        // keep-alive connections, DNS cache) from a previously proxied request leaks into this one.
-        // Each proxied request must be independent — only the headers the user explicitly set are
-        // sent, never a Set-Cookie picked up from an earlier response. Best-effort: a reset failure
-        // must never abort the request the user actually asked for.
-        if ($this->httpClient instanceof ResetInterface) {
-            try {
-                $this->httpClient->reset();
-            } catch (\Throwable) {
-                // ignore — isolation is best-effort, the request below still runs
-            }
-        }
+        $this->isolateClient();
 
-        $headerLines = [];
-        foreach ($headers as $header) {
-            $key = trim((string) ($header['key'] ?? ''));
-            if ($key === '' || \in_array(mb_strtolower($key), self::BLOCKED_HEADERS, true)) {
-                continue;
-            }
-            $headerLines[$key] = (string) ($header['value'] ?? '');
-        }
-        // Deliberate override coming from LocalHostRewriter (the URL targets an IP but the vhost
-        // must still see the original name); user-supplied Host headers stay blocked above.
-        if ($hostOverride !== null && $hostOverride !== '') {
-            $headerLines['Host'] = $hostOverride;
-        }
-
+        $upperMethod = strtoupper($method) ?: 'GET';
         $options = [
-            'headers' => $headerLines,
+            'headers' => $this->buildHeaderLines($headers, $hostOverride),
             'timeout' => $this->clampTimeout($timeout),
             'max_redirects' => 5,
             'verify_peer' => false,
             'verify_host' => false,
         ];
-        $upperMethod = strtoupper($method) ?: 'GET';
         if ($body !== null && $body !== '' && $upperMethod !== 'GET' && $upperMethod !== 'HEAD') {
             $options['body'] = $body;
         }
@@ -106,17 +81,7 @@ class ApiRequestExecutor
             $truncated = true;
         }
 
-        $flatHeaders = [];
-        $contentType = '';
-        foreach ($responseHeaders as $name => $values) {
-            foreach ($values as $value) {
-                // Header values may also carry non-UTF-8 bytes — sanitize so JSON encoding can't 500.
-                $flatHeaders[] = ['key' => $this->toUtf8((string) $name, ''), 'value' => $this->toUtf8($value, '')];
-                if (mb_strtolower($name) === 'content-type' && $contentType === '') {
-                    $contentType = $value;
-                }
-            }
-        }
+        [$flatHeaders, $contentType] = $this->flattenHeaders($responseHeaders);
 
         // Report the true byte size of the response, then coerce the body to valid UTF-8 so it can
         // be JSON-encoded — a non-UTF-8 body (ISO-8859-1, binary, a multibyte char cut by the size
@@ -134,6 +99,75 @@ class ApiRequestExecutor
             'truncated' => $truncated,
             'timeMs' => (int) round((microtime(true) - $startedAt) * 1000),
         ];
+    }
+
+    /**
+     * The injected client is a shared singleton; reset it so no state (a cookie jar, pooled
+     * keep-alive connections, DNS cache) from a previously proxied request leaks into this one.
+     * Each proxied request must be independent — only the headers the user explicitly set are
+     * sent, never a Set-Cookie picked up from an earlier response. Best-effort: a reset failure
+     * must never abort the request the user actually asked for.
+     */
+    private function isolateClient(): void
+    {
+        if (!$this->httpClient instanceof ResetInterface) {
+            return;
+        }
+
+        try {
+            $this->httpClient->reset();
+        } catch (\Throwable) {
+            // ignore — isolation is best-effort, the request below still runs
+        }
+    }
+
+    /**
+     * @param array<int, array{key: string, value: string}> $headers
+     *
+     * @return array<string, string>
+     */
+    private function buildHeaderLines(array $headers, ?string $hostOverride): array
+    {
+        $headerLines = [];
+        foreach ($headers as $header) {
+            $key = trim((string) ($header['key'] ?? ''));
+            if ($key === '' || \in_array(mb_strtolower($key), self::BLOCKED_HEADERS, true)) {
+                continue;
+            }
+            $headerLines[$key] = (string) ($header['value'] ?? '');
+        }
+        // Deliberate override coming from LocalHostRewriter (the URL targets an IP but the vhost
+        // must still see the original name); user-supplied Host headers stay blocked above.
+        if ($hostOverride !== null && $hostOverride !== '') {
+            $headerLines['Host'] = $hostOverride;
+        }
+
+        return $headerLines;
+    }
+
+    /**
+     * Flattens Symfony's name => values[] headers into the UI's key/value list, sanitizing both
+     * sides to UTF-8, and picks out the first Content-Type seen.
+     *
+     * @param array<string, array<int, string>> $responseHeaders
+     *
+     * @return array{0: array<int, array{key: string, value: string}>, 1: string}
+     */
+    private function flattenHeaders(array $responseHeaders): array
+    {
+        $flatHeaders = [];
+        $contentType = '';
+        foreach ($responseHeaders as $name => $values) {
+            foreach ($values as $value) {
+                // Header values may also carry non-UTF-8 bytes — sanitize so JSON encoding can't 500.
+                $flatHeaders[] = ['key' => $this->toUtf8((string) $name, ''), 'value' => $this->toUtf8($value, '')];
+                if (mb_strtolower($name) === 'content-type' && $contentType === '') {
+                    $contentType = $value;
+                }
+            }
+        }
+
+        return [$flatHeaders, $contentType];
     }
 
     /**

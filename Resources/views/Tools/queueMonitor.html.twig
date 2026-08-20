@@ -35,8 +35,9 @@
                 <aside class="aaxis-queue-mon__sidebar" data-role="sidebar">
                     <div class="aaxis-queue-mon__filter">
                         <div class="aaxis-queue-mon__filter-input">
-                            <input type="text" class="form-control" data-role="filter"
-                                   placeholder="{{ 'aaxis.tools.queue_monitor.filter_placeholder'|trans }}">
+                            <input type="text" id="aaxis-queue-mon-filter" class="form-control" data-role="filter"
+                                   placeholder="{{ 'aaxis.tools.queue_monitor.filter_placeholder'|trans }}"
+                                   aria-label="{{ 'aaxis.tools.queue_monitor.filter_label'|trans }}">
                             <button type="button" class="aaxis-queue-mon__filter-clear" data-role="filter-clear"
                                     title="{{ 'aaxis.tools.queue_monitor.filter_clear'|trans }}"
                                     aria-label="{{ 'aaxis.tools.queue_monitor.filter_clear'|trans }}"

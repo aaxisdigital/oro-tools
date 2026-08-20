@@ -21,6 +21,12 @@ use Symfony\Component\Routing\Attribute\Route;
  */
 class ApiCollectionController extends AbstractController
 {
+    /** Body could not be decoded as a JSON object. */
+    private const string MSG_INVALID_PAYLOAD = 'Invalid payload.';
+
+    /** Node does not exist, or is not visible to the current user. */
+    private const string MSG_NOT_FOUND = 'Not found.';
+
     #[Route(path: '/api-collection/tree', name: 'aaxis_tools_api_collection_tree', methods: ['GET'])]
     public function treeAction(): JsonResponse
     {
@@ -40,7 +46,7 @@ class ApiCollectionController extends AbstractController
     {
         $payload = json_decode($request->getContent(), true);
         if (!\is_array($payload)) {
-            return new JsonResponse(['success' => false, 'message' => 'Invalid payload.'], 400);
+            return new JsonResponse(['success' => false, 'message' => self::MSG_INVALID_PAYLOAD], 400);
         }
         $manager = $this->manager();
         $node = $manager->createNode($payload);
@@ -60,11 +66,11 @@ class ApiCollectionController extends AbstractController
         $manager = $this->manager();
         $node = $manager->findNode($id);
         if ($node === null || !$manager->canView($node)) {
-            return new JsonResponse(['success' => false, 'message' => 'Not found.'], 404);
+            return new JsonResponse(['success' => false, 'message' => self::MSG_NOT_FOUND], 404);
         }
         $payload = json_decode($request->getContent(), true);
         if (!\is_array($payload)) {
-            return new JsonResponse(['success' => false, 'message' => 'Invalid payload.'], 400);
+            return new JsonResponse(['success' => false, 'message' => self::MSG_INVALID_PAYLOAD], 400);
         }
         try {
             $manager->updateNode($node, $payload);
@@ -87,7 +93,7 @@ class ApiCollectionController extends AbstractController
         $manager = $this->manager();
         $node = $manager->findNode($id);
         if ($node === null || !$manager->canView($node)) {
-            return new JsonResponse(['success' => false, 'message' => 'Not found.'], 404);
+            return new JsonResponse(['success' => false, 'message' => self::MSG_NOT_FOUND], 404);
         }
         try {
             $manager->deleteNode($node);
@@ -110,7 +116,7 @@ class ApiCollectionController extends AbstractController
         $manager = $this->manager();
         $node = $manager->findNode($id);
         if ($node === null || !$manager->canView($node)) {
-            return new JsonResponse(['success' => false, 'message' => 'Not found.'], 404);
+            return new JsonResponse(['success' => false, 'message' => self::MSG_NOT_FOUND], 404);
         }
         $copy = $manager->duplicateNode($node);
 
@@ -123,7 +129,7 @@ class ApiCollectionController extends AbstractController
     {
         $payload = json_decode($request->getContent(), true);
         if (!\is_array($payload)) {
-            return new JsonResponse(['success' => false, 'message' => 'Invalid payload.'], 400);
+            return new JsonResponse(['success' => false, 'message' => self::MSG_INVALID_PAYLOAD], 400);
         }
         $manager = $this->manager();
         $manager->recordRun($payload);
@@ -144,7 +150,7 @@ class ApiCollectionController extends AbstractController
     {
         $payload = json_decode($request->getContent(), true);
         if (!\is_array($payload)) {
-            return new JsonResponse(['success' => false, 'message' => 'Invalid payload.'], 400);
+            return new JsonResponse(['success' => false, 'message' => self::MSG_INVALID_PAYLOAD], 400);
         }
 
         $method = strtoupper((string) ($payload['method'] ?? 'GET')) ?: 'GET';
