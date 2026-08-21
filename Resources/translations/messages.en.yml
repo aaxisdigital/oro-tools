@@ -30,7 +30,7 @@ aaxis:
                 label: 'Aaxis Tools - Base64'
         config:
             group:
-                title: 'Aaxis Tools'
+                title: 'Tools'
             test:
                 label: 'Connection'
             settings_block:

@@ -5,9 +5,18 @@ system_configuration:
             icon: fa-wrench
         aaxis_tools_queue_monitor:
             title: aaxis.tools.config.queue_monitor.title
+            icon: fa-tasks
+        aaxis_tools_queue_monitor_section:
+            title: aaxis.tools.config.queue_monitor.title
         aaxis_tools_api_collection:
             title: aaxis.tools.config.api_collection.title
+            icon: fa-paper-plane
+        aaxis_tools_api_collection_section:
+            title: aaxis.tools.config.api_collection.title
         aaxis_tools_base64:
+            title: aaxis.tools.config.base64.title
+            icon: fa-code
+        aaxis_tools_base64_section:
             title: aaxis.tools.config.base64.title
 
     fields:
@@ -116,13 +125,13 @@ system_configuration:
         system_configuration:
             aaxis:
                 children:
-                    aaxis_general:
+                    aaxis_tools:
+                        priority: 100
                         children:
-                            aaxis_tools:
-                                priority: 100
+                            aaxis_tools_queue_monitor:
+                                priority: 60
                                 children:
-                                    aaxis_tools_queue_monitor:
-                                        priority: 60
+                                    aaxis_tools_queue_monitor_section:
                                         children:
                                             - aaxis_tools.queue_monitor_enabled
                                             - aaxis_tools.queue_monitor_test
@@ -134,13 +143,17 @@ system_configuration:
                                             - aaxis_tools.queue_monitor_max_message_fetch
                                             - aaxis_tools.queue_monitor_history_samples
                                             - aaxis_tools.queue_monitor_history_interval
-                                    aaxis_tools_api_collection:
-                                        priority: 40
+                            aaxis_tools_api_collection:
+                                priority: 40
+                                children:
+                                    aaxis_tools_api_collection_section:
                                         children:
                                             - aaxis_tools.api_collection_enabled
                                             - aaxis_tools.api_collection_history_retention_days
                                             - aaxis_tools.api_collection_local_rewrite
-                                    aaxis_tools_base64:
-                                        priority: 35
+                            aaxis_tools_base64:
+                                priority: 35
+                                children:
+                                    aaxis_tools_base64_section:
                                         children:
                                             - aaxis_tools.base64_enabled

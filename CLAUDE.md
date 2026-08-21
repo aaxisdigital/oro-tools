@@ -61,8 +61,10 @@ with `{"tool":"queue_monitor"}`.
 
 Same shape as `AaxisDevToolsBundle` (see its `CLAUDE.md`), using the `aaxis_tools` / `aaxistools` /
 `aaxis.tools.*` / `@AaxisTools` conventions: controller(s) → `services.yml` + `controllers.yml` →
-`Configuration.php` + `system_configuration.yml` (tree under the shared `aaxis > aaxis_general`
-tab from CommonBundle; deep links use `activeGroup: 'aaxis'`) → `navigation.yml` (under `aaxis_tools_group`) →
+`Configuration.php` + `system_configuration.yml` (the bundle owns the `aaxis_tools` "Tools"
+level-2 menu group under CommonBundle's `aaxis` tab; each tool is its own level-3 PAGE whose
+fields sit in a `<page>_section` fieldset — fields must land at nesting level 5; deep links use
+`activeGroup: 'aaxis'`, `activeSubGroup: '<the tool's page group>'`) → `navigation.yml` (under `aaxis_tools_group`) →
 `features.yml` toggle → `acls.yml` binding → `assets.yml`/`jsmodules.yml` → templates →
 `aaxis.tools.*` translations → migration (consolidated install in `AaxisToolsBundleInstaller`).
 
