@@ -186,7 +186,12 @@ class ApiRequestExecutor
             $charset = $matches[1];
         }
         if ($charset !== '' && strcasecmp($charset, 'UTF-8') !== 0) {
-            $converted = @mb_convert_encoding($content, 'UTF-8', $charset);
+            try {
+                $converted = @mb_convert_encoding($content, 'UTF-8', $charset);
+            } catch (\ValueError) {
+                // A charset PHP does not know ("charset=bogus") throws instead of returning false.
+                $converted = false;
+            }
             if ($converted !== false && mb_check_encoding($converted, 'UTF-8')) {
                 return $converted;
             }

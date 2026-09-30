@@ -61,23 +61,18 @@ class RabbitMqManagementClient
      */
     public function testConnection(): array
     {
-        $url = $this->baseUrl . '/api/overview';
-        $ch = curl_init($url);
-        if ($ch === false) {
+        $result = $this->transport($this->baseUrl . '/api/overview', [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_USERPWD => $this->user . ':' . $this->password,
+            CURLOPT_CONNECTTIMEOUT => 5,
+            CURLOPT_TIMEOUT => 10,
+            CURLOPT_HTTPHEADER => ['Accept: application/json'],
+        ]);
+        if ($result === null) {
             return ['success' => false, 'message' => 'Unable to initialise the request.', 'details' => []];
         }
 
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_USERPWD, $this->user . ':' . $this->password);
-        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 10);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Accept: application/json']);
-
-        $response = curl_exec($ch);
-        $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
-        $errno = curl_errno($ch);
-        $error = curl_error($ch);
-        curl_close($ch);
+        ['response' => $response, 'status' => $status, 'errno' => $errno, 'error' => $error] = $result;
 
         $details = [
             'Management URL' => $this->baseUrl,
@@ -85,33 +80,9 @@ class RabbitMqManagementClient
             'Virtual host' => $this->vhost,
         ];
 
-        if ($response === false || $errno !== 0) {
-            return [
-                'success' => false,
-                'message' => sprintf(
-                    'Management API unreachable at %s (%s). Ensure the "rabbitmq_management" plugin is enabled '
-                    . 'and the management port (default 15672) is reachable from the application.',
-                    $this->baseUrl,
-                    $error !== '' ? $error : 'connection failed'
-                ),
-                'details' => $details,
-            ];
-        }
-
-        if ($status === 401) {
-            return [
-                'success' => false,
-                'message' => sprintf('Authentication failed for user "%s" (HTTP 401). Check the credentials in ORO_MQ_DSN.', $this->user),
-                'details' => $details,
-            ];
-        }
-
-        if ($status >= 400) {
-            return [
-                'success' => false,
-                'message' => sprintf('Management API returned HTTP %d.', $status),
-                'details' => $details,
-            ];
+        $failure = $this->connectionFailure($response, $status, $errno, $error);
+        if ($failure !== null) {
+            return ['success' => false, 'message' => $failure, 'details' => $details];
         }
 
         $decoded = json_decode((string) $response, true);
@@ -128,6 +99,27 @@ class RabbitMqManagementClient
         }
 
         return ['success' => true, 'message' => 'Connected to the RabbitMQ management API.', 'details' => $details];
+    }
+
+    /**
+     * Why the overview call did not amount to a working connection, or null when it did.
+     */
+    private function connectionFailure(string|false $response, int $status, int $errno, string $error): ?string
+    {
+        return match (true) {
+            $response === false || $errno !== 0 => sprintf(
+                'Management API unreachable at %s (%s). Ensure the "rabbitmq_management" plugin is enabled '
+                . 'and the management port (default 15672) is reachable from the application.',
+                $this->baseUrl,
+                $error !== '' ? $error : 'connection failed'
+            ),
+            $status === 401 => sprintf(
+                'Authentication failed for user "%s" (HTTP 401). Check the credentials in ORO_MQ_DSN.',
+                $this->user
+            ),
+            $status >= 400 => sprintf('Management API returned HTTP %d.', $status),
+            default => null,
+        };
     }
 
     /**
@@ -319,28 +311,27 @@ class RabbitMqManagementClient
      */
     private function request(string $method, string $path, ?array $body = null): array
     {
-        $ch = curl_init($this->baseUrl . $path);
-        if ($ch === false) {
-            throw new RabbitMqManagementException('Unable to initialise the management API request.');
-        }
-
         $headers = ['Accept: application/json'];
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
-        curl_setopt($ch, CURLOPT_USERPWD, $this->user . ':' . $this->password);
-        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 15);
+        $options = [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_CUSTOMREQUEST => $method,
+            CURLOPT_USERPWD => $this->user . ':' . $this->password,
+            CURLOPT_CONNECTTIMEOUT => 5,
+            CURLOPT_TIMEOUT => 15,
+        ];
 
         if ($body !== null) {
             $headers[] = 'Content-Type: application/json';
-            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($body));
+            $options[CURLOPT_POSTFIELDS] = json_encode($body);
         }
-        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+        $options[CURLOPT_HTTPHEADER] = $headers;
 
-        $response = curl_exec($ch);
-        $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
-        $error = curl_error($ch);
-        curl_close($ch);
+        $result = $this->transport($this->baseUrl . $path, $options);
+        if ($result === null) {
+            throw new RabbitMqManagementException('Unable to initialise the management API request.');
+        }
+
+        ['response' => $response, 'status' => $status, 'error' => $error] = $result;
 
         if ($response === false) {
             throw new RabbitMqManagementException(
@@ -356,5 +347,33 @@ class RabbitMqManagementClient
         $decoded = json_decode((string) $response, true);
 
         return \is_array($decoded) ? $decoded : [];
+    }
+
+    /**
+     * The only place that talks to curl. Kept as a protected method so the management API's
+     * answers can be scripted without a network.
+     *
+     * @param array<int, mixed> $options CURLOPT_* => value
+     *
+     * @return array{response: string|false, status: int, errno: int, error: string}|null
+     *         null when curl cannot be initialised
+     */
+    protected function transport(string $url, array $options): ?array
+    {
+        $ch = curl_init($url);
+        if ($ch === false) {
+            return null;
+        }
+
+        curl_setopt_array($ch, $options);
+        $response = curl_exec($ch);
+
+        // No curl_close(): a no-op since PHP 8.0 (deprecated in 8.5) — the handle is freed on return.
+        return [
+            'response' => \is_string($response) ? $response : false,
+            'status' => (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE),
+            'errno' => curl_errno($ch),
+            'error' => curl_error($ch),
+        ];
     }
 }

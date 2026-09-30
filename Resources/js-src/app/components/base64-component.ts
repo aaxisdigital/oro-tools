@@ -369,7 +369,7 @@ class Base64Component extends BaseComponent {
         let binary = '';
         const chunk = 0x8000;
         for (let i = 0; i < bytes.length; i += chunk) {
-            binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk) as any);
+            binary += String.fromCodePoint.apply(null, bytes.subarray(i, i + chunk) as any);
         }
         return btoa(binary);
     }
@@ -399,7 +399,7 @@ class Base64Component extends BaseComponent {
         const binary = atob(normalized); // throws on invalid characters
         const bytes = new Uint8Array(binary.length);
         for (let i = 0; i < binary.length; i++) {
-            bytes[i] = binary.charCodeAt(i);
+            bytes[i] = binary.codePointAt(i) ?? 0;
         }
         return bytes;
     }
@@ -431,7 +431,7 @@ class Base64Component extends BaseComponent {
             }
             return true;
         };
-        const ascii = (str: string, offset?: number) => starts(str.split('').map(c => c.charCodeAt(0)), offset);
+        const ascii = (str: string, offset?: number) => starts(str.split('').map(c => c.codePointAt(0) ?? 0), offset);
 
         if (ascii('%PDF')) {
             return {ext: 'pdf', mime: 'application/pdf', label: 'PDF document'};

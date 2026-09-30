@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Aaxis\Bundle\ToolsBundle\Http;
 
 use Oro\Bundle\ConfigBundle\Config\ConfigManager;
+use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\RequestStack;
 
 /**
@@ -31,28 +32,14 @@ class LocalHostRewriter
      */
     public function rewrite(string $url): ?array
     {
-        if (!$this->configManager->get('aaxis_tools.api_collection_local_rewrite')) {
-            return null;
-        }
-
         $request = $this->requestStack->getMainRequest();
-        if ($request === null) {
+        if ($request === null || !$this->configManager->get('aaxis_tools.api_collection_local_rewrite')) {
             return null;
         }
 
-        $parts = parse_url($url);
-        if (!\is_array($parts) || strtolower($parts['scheme'] ?? '') !== 'https' || empty($parts['host'])) {
-            return null;
-        }
-
-        $urlHost = $this->normalizeHost($parts['host']);
-        $httpHost = $this->normalizeHost($this->stripPort((string) $request->server->get('HTTP_HOST', '')));
-        if ($urlHost === '' || $urlHost !== $httpHost) {
-            return null;
-        }
-
+        $parts = $this->ownHostHttpsParts($url, $request);
         $serverAddr = (string) $request->server->get('SERVER_ADDR', '');
-        if (filter_var($serverAddr, FILTER_VALIDATE_IP) === false) {
+        if ($parts === null || filter_var($serverAddr, FILTER_VALIDATE_IP) === false) {
             return null;
         }
         // IPv6 literals need brackets inside a URL authority.
@@ -71,6 +58,27 @@ class LocalHostRewriter
                 . (isset($parts['fragment']) ? '#' . $parts['fragment'] : ''),
             'hostHeader' => $parts['host'] . (isset($parts['port']) ? ':' . $parts['port'] : ''),
         ];
+    }
+
+    /**
+     * The parsed URL when it is an https URL for this very application host (HTTP_HOST), else null.
+     *
+     * @return array<string, int|string>|null
+     */
+    private function ownHostHttpsParts(string $url, Request $request): ?array
+    {
+        $parts = parse_url($url);
+        if (!\is_array($parts) || strtolower($parts['scheme'] ?? '') !== 'https' || empty($parts['host'])) {
+            return null;
+        }
+
+        $urlHost = $this->normalizeHost($parts['host']);
+        $httpHost = $this->normalizeHost($this->stripPort((string) $request->server->get('HTTP_HOST', '')));
+        if ($urlHost === '' || $urlHost !== $httpHost) {
+            return null;
+        }
+
+        return $parts;
     }
 
     /** Lowercases and strips IPv6 brackets so hosts from different sources compare equal. */

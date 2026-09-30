@@ -93,12 +93,12 @@ class ApiCollectionManager
         $node->setType(($data['type'] ?? '') === ApiCollectionRequest::TYPE_FOLDER
             ? ApiCollectionRequest::TYPE_FOLDER
             : ApiCollectionRequest::TYPE_REQUEST);
-        $node->setName($this->cleanName((string) ($data['name'] ?? '')));
+        $node->setName(ApiCollectionNodeFields::cleanName((string) ($data['name'] ?? '')));
         $node->setParentId(isset($data['parentId']) && $data['parentId'] !== null ? (int) $data['parentId'] : null);
         $node->setPublic((bool) ($data['public'] ?? false));
 
         if (!$node->isFolder()) {
-            $this->applyRequestFields($node, $data);
+            ApiCollectionNodeFields::applyRequestFields($node, $data);
         }
 
         $now = $this->now();
@@ -125,13 +125,13 @@ class ApiCollectionManager
         $this->assertOwner($node);
 
         if (\array_key_exists('name', $data) && $data['name'] !== null) {
-            $node->setName($this->cleanName((string) $data['name']));
+            $node->setName(ApiCollectionNodeFields::cleanName((string) $data['name']));
         }
         if (\array_key_exists('public', $data) && $data['public'] !== null) {
             $node->setPublic((bool) $data['public']);
         }
         if (!$node->isFolder()) {
-            $this->applyRequestFields($node, $data);
+            ApiCollectionNodeFields::applyRequestFields($node, $data);
         }
         $node->setUpdatedAt($this->now());
 
@@ -258,46 +258,6 @@ class ApiCollectionManager
     }
 
     /**
-     * Copies the supported request fields from a payload onto the node. Only keys actually present
-     * are touched, so a partial payload leaves the rest of the request alone.
-     *
-     * @param array<string, mixed> $data
-     */
-    private function applyRequestFields(ApiCollectionRequest $node, array $data): void
-    {
-        $this->applyEndpointFields($node, $data);
-        $this->applyPayloadFields($node, $data);
-    }
-
-    /** Where the request goes: method and URL. */
-    private function applyEndpointFields(ApiCollectionRequest $node, array $data): void
-    {
-        if (\array_key_exists('method', $data)) {
-            $node->setMethod($data['method'] !== null ? mb_substr((string) $data['method'], 0, 10) : null);
-        }
-        if (\array_key_exists('url', $data)) {
-            $node->setUrl($data['url'] !== null ? (string) $data['url'] : null);
-        }
-    }
-
-    /** What it sends: params, headers and body. */
-    private function applyPayloadFields(ApiCollectionRequest $node, array $data): void
-    {
-        if (\array_key_exists('params', $data)) {
-            $node->setParams(\is_array($data['params']) ? $data['params'] : null);
-        }
-        if (\array_key_exists('headers', $data)) {
-            $node->setHeaders(\is_array($data['headers']) ? $data['headers'] : null);
-        }
-        if (\array_key_exists('bodyType', $data)) {
-            $node->setBodyType($data['bodyType'] !== null ? (string) $data['bodyType'] : null);
-        }
-        if (\array_key_exists('body', $data)) {
-            $node->setBody($data['body'] !== null ? (string) $data['body'] : null);
-        }
-    }
-
-    /**
      * @return int[]
      */
     private function collectSubtreeIds(ApiCollectionRequest $node): array
@@ -329,13 +289,6 @@ class ApiCollectionManager
         }
 
         return $count;
-    }
-
-    private function cleanName(string $name): string
-    {
-        $name = trim($name);
-
-        return $name === '' ? 'Untitled' : mb_substr($name, 0, 255);
     }
 
     private function now(): \DateTime

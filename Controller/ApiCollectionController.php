@@ -72,6 +72,15 @@ class ApiCollectionController extends AbstractController
         if (!\is_array($payload)) {
             return new JsonResponse(['success' => false, 'message' => self::MSG_INVALID_PAYLOAD], 400);
         }
+
+        return $this->applyUpdate($manager, $node, $payload);
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    private function applyUpdate(ApiCollectionManager $manager, ApiCollectionRequest $node, array $payload): JsonResponse
+    {
         try {
             $manager->updateNode($node, $payload);
         } catch (\RuntimeException $e) {

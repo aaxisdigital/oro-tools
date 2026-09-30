@@ -883,8 +883,11 @@ class QueueMonitorComponent extends BaseComponent {
         textarea.style.opacity = '0';
         document.body.appendChild(textarea);
         textarea.select();
+        // execCommand is flagged deprecated in lib.dom but is still the only synchronous copy path
+        // where the async clipboard API is unavailable.
+        const legacy = document as unknown as {execCommand(command: string): boolean};
         try {
-            document.execCommand('copy');
+            legacy.execCommand('copy');
             onSuccess();
         } catch {
             // The browser refused the copy; onError() is the whole response.
